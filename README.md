@@ -1,4 +1,4 @@
-# Aim Trainer | Тренажер прицеливания
+# Aim Trainer nsfw/sfm | Тренажер прицеливания nsfw/sfm
 
 [English](#english) | [Русский](#русский)
 
