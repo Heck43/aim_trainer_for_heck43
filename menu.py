@@ -371,6 +371,50 @@ class MainMenu:
         )
         self.bhop_checkbox['indicatorValue'] = self.game.settings.get('bhop_enabled', True)
 
+        # Recoil toggle
+        recoil_label = DirectLabel(
+            text="Recoil",
+            pos=(-0.6, 0, 0.2),  # Moved more to the left
+            parent=game_tab,
+            **self.settings_style
+        )
+
+        self.recoil_checkbox = DirectCheckButton(
+            text="Enable",
+            scale=0.05,
+            pos=(0.0, 0, 0.2),  # Adjusted position
+            command=self.toggle_recoil,
+            parent=game_tab,
+            frameColor=(0.15, 0.15, 0.15, 0.9),
+            relief=DGG.RIDGE,
+            borderWidth=(0.02, 0.02),
+            text_fg=(1, 1, 1, 1)
+        )
+        self.recoil_checkbox['indicatorValue'] = self.game.settings.get('recoil_enabled', True)
+
+        # Target count setting
+        target_count_label = DirectLabel(
+            text="Target Count",
+            pos=(-0.6, 0, 0.1),
+            parent=game_tab,
+            **self.settings_style
+        )
+
+        self.target_count_options = ["5", "10", "15", "20", "25", "30"]
+        current_target_count = str(self.game.settings.get('target_count', 10))
+        
+        self.target_count_menu = DirectOptionMenu(
+            text="",
+            text_scale=0.05,
+            scale=0.1,
+            items=self.target_count_options,
+            initialitem=self.target_count_options.index(current_target_count) if current_target_count in self.target_count_options else 1,
+            highlightColor=(0.65, 0.65, 0.65, 1),
+            parent=game_tab,
+            pos=(0.0, 0, 0.1),
+            command=self.set_target_count
+        )
+
         # Audio Settings
         # Music Enable/Disable
         music_enabled_label = DirectLabel(
@@ -634,6 +678,15 @@ class MainMenu:
     def change_music_track(self, track_name):
         """Change the current music track"""
         self.game.change_music_track(track_name)
+
+    def toggle_recoil(self, status):
+        """Включает/выключает отдачу"""
+        self.game.settings['recoil_enabled'] = status
+
+    def set_target_count(self, count):
+        """Установка количества манекенов"""
+        self.game.settings['target_count'] = int(count)
+        self.game.save_settings()
 
 class DirectTab(DirectFrame):
     def __init__(self, parent=None, **kw):

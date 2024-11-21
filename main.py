@@ -41,6 +41,7 @@ class Game(ShowBase):
             'damage_numbers': True,
             'killfeed': True,
             'show_fps': True,
+            'recoil_enabled': True,  # Включение/выключение отдачи
             'weapon_position': {
                 'x': 0.3,  # Правее от центра
                 'y': 0.8,  # Вперед от камеры
@@ -52,7 +53,8 @@ class Game(ShowBase):
                 'music_enabled': True,
                 'music_volume': 0.5,
                 'current_track': 'default_track.mp3'
-            }
+            },
+            'target_count': 10  # Добавляем настройку количества манекенов
         }
         
         # Загружаем настройки
@@ -145,6 +147,46 @@ class Game(ShowBase):
         self.last_jump_time = 0
         self.combo_task = None
         
+        # Параметры стрельбы
+        self.can_shoot = True
+        self.current_weapon = "rifle"  # По умолчанию используем винтовку
+        
+        # Параметры оружий
+        self.weapons = {
+            "pistol": {
+                "cooldown": 0.2,  # Задержка между выстрелами
+                "damage": 25,
+                "recoil": {
+                    "pitch": (0.5, 1.0),  # Мин и макс вертикальной отдачи
+                    "yaw": (-0.3, 0.3),   # Мин и макс горизонтальной отдачи
+                }
+            },
+            "rifle": {
+                "cooldown": 0.1,  # Быстрее стреляет
+                "damage": 20,     # Меньше урон
+                "recoil": {
+                    "pitch": (0.3, 0.6),  # Меньше вертикальная отдача
+                    "yaw": (-0.2, 0.2),   # Меньше разброс
+                }
+            }
+        }
+        
+        self.shoot_cooldown = self.weapons[self.current_weapon]["cooldown"]
+        self.recoil_time = 0.05
+        self.is_shooting = False
+        self.shoot_time = 0
+        self.original_weapon_pos = None
+        self.original_weapon_hpr = None
+        
+        # Параметры отдачи
+        self.recoil_pitch = 0  # Текущий подъем камеры от отдачи
+        self.recoil_yaw = 0    # Текущее боковое отклонение
+        self.max_recoil_pitch = 2.0  # Максимальный подъем камеры
+        self.max_recoil_yaw = 1.0   # Максимальное боковое отклонение
+        self.recoil_recovery_speed = 5.0  # Скорость возврата камеры
+        self.recoil_recovery_delay = 0.1  # Задержка перед началом восстановления
+        self.last_shot_time = 0
+        
         # Настройка камеры
         self.camera_height = 1.8
         self.camera.setPos(0, 0, self.camera_height)
@@ -169,15 +211,6 @@ class Game(ShowBase):
             pos=(0, 0),
             scale=.05)
 
-        # Параметры стрельбы
-        self.can_shoot = True
-        self.shoot_cooldown = 0.2  # Задержка между выстрелами в секундах
-        self.recoil_time = 0.05
-        self.is_shooting = False
-        self.shoot_time = 0
-        self.original_weapon_pos = None
-        self.original_weapon_hpr = None
-        
         # Загрузка звуков
         self.shot_sound = self.loader.loadSfx("sounds/shot.wav")
         self.hit_sound = self.loader.loadSfx("sounds/hit.wav")
@@ -208,6 +241,8 @@ class Game(ShowBase):
         # Настройка управления
         self.accept("escape", self.return_to_menu)
         self.accept("space", self.start_jump)
+        self.accept("1", self.switch_weapon, ["rifle"])    # Клавиша 1 для винтовки
+        self.accept("2", self.switch_weapon, ["pistol"])   # Клавиша 2 для пистолета
         
         # Инициализируем keyMap
         self.keyMap = {
@@ -280,6 +315,9 @@ class Game(ShowBase):
         # Initialize audio
         self.music = None
         self.current_music_path = None
+
+        # Добавляем переменную для отслеживания зажатия кнопки
+        self.mouse_pressed = False
 
     def create_text(self, x, y):
         return OnscreenText(
@@ -360,17 +398,29 @@ class Game(ShowBase):
         return marker_node
 
     def setup_targets(self):
-        # Позиции для манекенов (x, y)
-        target_positions = [
-            (0, 20),      # Центральный манекен
-            (-10, 25),    # Левый дальний
-            (10, 25),     # Правый дальний
-            (0, 30),      # Дальний центральный
-        ]
+        """Создание манекенов"""
+        # Очищаем существующие манекены
+        for target in self.targets:
+            target.cleanup()
+        self.targets.clear()
+
+        # Получаем количество манекенов из настроек (по умолчанию 10)
+        target_count = self.settings.get('target_count', 10)
         
-        # Создаем манекены в указанных позициях
-        for pos_x, pos_y in target_positions:
-            target = Target(self, Point3(pos_x, pos_y, 1))
+        # Параметры зоны спавна
+        min_distance = 15  # Минимальная дистанция от игрока
+        max_distance = 35  # Максимальная дистанция от игрока
+        arena_width = 30   # Ширина арены
+        
+        # Создаем новые манекены
+        for _ in range(target_count):
+            # Генерируем случайную позицию
+            x = random.uniform(-arena_width/2, arena_width/2)
+            y = random.uniform(min_distance, max_distance)
+            z = 1  # Высота манекена над землей
+            
+            # Создаем манекен на случайной позиции
+            target = Target(self, Point3(x, y, z))
             self.targets.append(target)
 
     def setup_weapon(self):
@@ -378,19 +428,69 @@ class Game(ShowBase):
         self.weapon = NodePath("weapon")
         self.weapon.reparentTo(self.camera)
         
-        # Создаем дуло (удлиненный прямоугольник)
+        # Создаем модели для каждого оружия
+        self.weapon_models = {}
+        
+        # Создаем пистолет
+        pistol = NodePath("pistol")
+        pistol.reparentTo(self.weapon)
+        
+        # Дуло пистолета (короткий прямоугольник)
         barrel = self.loader.loadModel("models/box")
         barrel.setScale(0.08, 0.4, 0.08)  # Тонкое и длинное
-        barrel.setPos(0, 1.0, -0.1)  # Выдвигаем дальше вперед
+        barrel.setPos(0, 1.0, -0.1)  # Выдвигаем вперед
         barrel.setColor(0.2, 0.2, 0.2)  # Тёмно-серый цвет
-        barrel.reparentTo(self.weapon)
+        barrel.reparentTo(pistol)
         
-        # Создаем рукоять (прямоугольник)
+        # Рукоять пистолета
         grip = self.loader.loadModel("models/box")
         grip.setScale(0.1, 0.1, 0.25)  # Размер рукояти
         grip.setPos(0, 0.8, -0.3)  # Располагаем под дулом
         grip.setColor(0.3, 0.3, 0.3)  # Чуть светлее серый
-        grip.reparentTo(self.weapon)
+        grip.reparentTo(pistol)
+        
+        self.weapon_models["pistol"] = pistol
+        
+        # Создаем винтовку
+        rifle = NodePath("rifle")
+        rifle.reparentTo(self.weapon)
+        
+        # Дуло винтовки (длинный прямоугольник)
+        barrel = self.loader.loadModel("models/box")
+        barrel.setScale(0.06, 0.8, 0.06)  # Более длинное и тонкое
+        barrel.setPos(0, 1.2, -0.1)  # Выдвигаем дальше вперед
+        barrel.setColor(0.2, 0.2, 0.2)  # Тёмно-серый цвет
+        barrel.reparentTo(rifle)
+        
+        # Основная часть винтовки
+        body = self.loader.loadModel("models/box")
+        body.setScale(0.1, 0.4, 0.12)  # Шире и длиннее
+        body.setPos(0, 0.8, -0.1)  # Позиция тела
+        body.setColor(0.25, 0.25, 0.25)  # Серый цвет
+        body.reparentTo(rifle)
+        
+        # Приклад винтовки
+        stock = self.loader.loadModel("models/box")
+        stock.setScale(0.08, 0.3, 0.15)  # Размер приклада
+        stock.setPos(0, 0.4, -0.15)  # Позиция приклада
+        stock.setColor(0.3, 0.3, 0.3)  # Чуть светлее серый
+        stock.reparentTo(rifle)
+        
+        # Рукоять винтовки
+        grip = self.loader.loadModel("models/box")
+        grip.setScale(0.08, 0.1, 0.2)  # Размер рукояти
+        grip.setPos(0, 0.7, -0.3)  # Позиция рукояти
+        grip.setColor(0.3, 0.3, 0.3)  # Чуть светлее серый
+        grip.reparentTo(rifle)
+        
+        self.weapon_models["rifle"] = rifle
+        
+        # Скрываем все оружия кроме текущего
+        for weapon_name, model in self.weapon_models.items():
+            if weapon_name == self.current_weapon:
+                model.show()
+            else:
+                model.hide()
         
         # Apply weapon position from settings
         self.update_weapon_position()
@@ -422,34 +522,62 @@ class Game(ShowBase):
         
     def animate_weapon_recoil(self):
         # Сохраняем текущую позицию
+        if not self.original_weapon_pos:
+            self.original_weapon_pos = self.weapon.getPos()
+            self.original_weapon_hpr = self.weapon.getHpr()
+        
         start_pos = self.weapon.getPos()
+        start_hpr = self.weapon.getHpr()
         
         # Создаем отдачу (назад и вверх)
         recoil_pos = Point3(
             start_pos.getX(),  # X остается тем же
-            start_pos.getY() - 0.1,  # Немного назад
-            start_pos.getZ() + 0.05   # Немного вверх
+            start_pos.getY() - 0.2,  # Сильнее назад
+            start_pos.getZ() + 0.1   # Сильнее вверх
+        )
+        
+        # Отдача в повороте оружия
+        recoil_hpr = Vec3(
+            start_hpr.getX(),     # Поворот влево-вправо
+            start_hpr.getY() + 15, # Поворот вверх
+            start_hpr.getZ() + random.uniform(-5, 5)  # Случайный наклон
         )
         
         # Создаем последовательность анимации
         recoil_sequence = Sequence(
-            # Быстрое движение назад и вверх
-            self.weapon.posInterval(
-                0.05,  # Длительность движения назад
-                recoil_pos,
-                start_pos,
-                blendType='easeOut'
+            Parallel(
+                # Быстрое движение назад и вверх
+                self.weapon.posInterval(
+                    0.05,  # Длительность движения назад
+                    recoil_pos,
+                    start_pos,
+                    blendType='easeOut'
+                ),
+                # Поворот оружия
+                self.weapon.hprInterval(
+                    0.05,
+                    recoil_hpr,
+                    start_hpr,
+                    blendType='easeOut'
+                )
             ),
             # Медленное возвращение в исходную позицию
-            self.weapon.posInterval(
-                0.1,  # Длительность возврата
-                start_pos,
-                recoil_pos,
-                blendType='easeIn'
+            Parallel(
+                self.weapon.posInterval(
+                    0.15,  # Длительность возврата
+                    self.original_weapon_pos,
+                    recoil_pos,
+                    blendType='easeIn'
+                ),
+                self.weapon.hprInterval(
+                    0.15,
+                    self.original_weapon_hpr,
+                    recoil_hpr,
+                    blendType='easeIn'
+                )
             )
         )
         
-        # Запускаем анимацию
         recoil_sequence.start()
 
     def updateKeyMap(self, key, value):
@@ -529,8 +657,34 @@ class Game(ShowBase):
             'reset_shoot'
         )
         
-        # Анимация отдачи оружия
-        self.animate_weapon_recoil()
+        # Получаем параметры текущего оружия
+        weapon_params = self.weapons[self.current_weapon]
+        
+        # Применяем отдачу только если она включена в настройках
+        if self.settings.get('recoil_enabled', True):
+            # Применяем отдачу к камере с параметрами текущего оружия
+            recoil_pitch_range = weapon_params["recoil"]["pitch"]
+            recoil_yaw_range = weapon_params["recoil"]["yaw"]
+            
+            recoil_pitch = random.uniform(recoil_pitch_range[0], recoil_pitch_range[1])
+            recoil_yaw = random.uniform(recoil_yaw_range[0], recoil_yaw_range[1])
+            
+            self.recoil_pitch += recoil_pitch
+            self.recoil_yaw += recoil_yaw
+            
+            # Ограничиваем максимальную отдачу
+            self.recoil_pitch = min(self.recoil_pitch, self.max_recoil_pitch)
+            self.recoil_yaw = max(min(self.recoil_yaw, self.max_recoil_yaw), -self.max_recoil_yaw)
+            
+            # Применяем отдачу к камере
+            self.camera_pitch += recoil_pitch
+            self.camera_heading += recoil_yaw
+            
+            # Обновляем время последнего выстрела
+            self.last_shot_time = globalClock.getFrameTime()
+            
+            # Анимация отдачи оружия
+            self.animate_weapon_recoil()
         
         if not self.mouseWatcherNode.hasMouse():
             return
@@ -710,7 +864,8 @@ class Game(ShowBase):
         
         # Включаем управление
         self.taskMgr.add(self.update, "update")
-        self.accept("mouse1", self.shoot)
+        self.accept("mouse1", self.on_mouse_press)
+        self.accept("mouse1-up", self.on_mouse_release)
         
         # Сбрасываем и показываем счет и таймер
         self.score = 0
@@ -803,13 +958,21 @@ class Game(ShowBase):
             self.create_killfeed_message("Training Bot")
 
     def get_damage_for_part(self, part_name):
-        if part_name == 'target_head':
-            return 100  # Хедшот
-        elif part_name in ['target_body', 'target_left_arm', 'target_right_arm']:
-            return random.randint(40, 80)  # Случайный урон для тела и рук
-        elif part_name == 'target_legs':
-            return 40  # Фиксированный урон для ног
-        return 0
+        """Возвращает урон в зависимости от части тела"""
+        base_damage = self.weapons[self.current_weapon]["damage"]
+        
+        # Множители урона для разных частей тела
+        damage_multipliers = {
+            "head": 2.0,    # Двойной урон в голову
+            "body": 1.0,    # Обычный урон в тело
+            "limb": 0.75    # Уменьшенный урон в конечность
+        }
+        
+        # Получаем множитель урона для части тела или 1.0 если часть неизвестна
+        multiplier = damage_multipliers.get(part_name, 1.0)
+        
+        # Возвращаем урон с учетом множителя
+        return int(base_damage * multiplier)
 
     def spawn_damage_text(self, text, pos):
         # Создаем текст с уроном
@@ -1100,6 +1263,28 @@ class Game(ShowBase):
         self.fps_text.setText(f"FPS: {self.fps}")
         self.pos_text.setText(f"Pos: ({self.camera.getX():.1f}, {self.camera.getY():.1f}, {self.camera.getZ():.1f})")
         
+        # Обновление отдачи
+        current_time = globalClock.getFrameTime()
+        if current_time - self.last_shot_time > self.recoil_recovery_delay:
+            # Восстановление от отдачи
+            if self.recoil_pitch > 0:
+                old_pitch = self.recoil_pitch
+                self.recoil_pitch = max(0, self.recoil_pitch - self.recoil_recovery_speed * dt)
+                # Применяем разницу к камере
+                self.camera_pitch -= (old_pitch - self.recoil_pitch)
+            
+            if self.recoil_yaw != 0:
+                old_yaw = self.recoil_yaw
+                if self.recoil_yaw > 0:
+                    self.recoil_yaw = max(0, self.recoil_yaw - self.recoil_recovery_speed * dt)
+                else:
+                    self.recoil_yaw = min(0, self.recoil_yaw + self.recoil_recovery_speed * dt)
+                # Применяем разницу к камере
+                self.camera_heading -= (old_yaw - self.recoil_yaw)
+            
+            # Обновляем положение камеры
+            self.camera.setHpr(self.camera_heading, self.camera_pitch, 0)
+        
         # Обработка движения
         move_vec = Vec3(0, 0, 0)
         
@@ -1184,8 +1369,10 @@ class Game(ShowBase):
         self.speed_text.setText(f"Speed: {current_speed:.1f}")
         
         # Обработка стрельбы при нажатии левой кнопки мыши
-        if self.mouseWatcherNode.isButtonDown(0):  # 0 = левая кнопка мыши
-            self.shoot()
+        if self.mouse_pressed and self.current_weapon == "rifle":
+            current_time = time.time()
+            if current_time - self.last_shot_time >= self.weapons[self.current_weapon]["cooldown"]:
+                self.shoot()
         
         # Обновляем килфид
         self.update_killfeed_positions()
@@ -1248,7 +1435,8 @@ class Game(ShowBase):
         self.mouse_sensitivity = self.settings.get('sensitivity', self.DEFAULT_SETTINGS['sensitivity'])
         
         # Добавляем обработчик движения мыши
-        self.accept("mouse1", self.shoot)
+        self.accept("mouse1", self.on_mouse_press)
+        self.accept("mouse1-up", self.on_mouse_release)
         
         # Устанавливаем задачу для обработки движения мыши
         taskMgr.add(self.mouseTask, 'mouseTask')
@@ -1349,6 +1537,30 @@ class Game(ShowBase):
             self.play_music(self.settings['audio']['current_track'], self.settings['audio']['music_volume'])
         elif self.music:
             self.music.stop()
+
+    def switch_weapon(self, weapon_name):
+        """Переключает оружие"""
+        if weapon_name in self.weapons and hasattr(self, 'weapon_models'):
+            # Обновляем текущее оружие
+            self.current_weapon = weapon_name
+            self.shoot_cooldown = self.weapons[weapon_name]["cooldown"]
+            
+            # Переключаем видимость моделей
+            for name, model in self.weapon_models.items():
+                if name == weapon_name:
+                    model.show()
+                else:
+                    model.hide()
+
+    def on_mouse_press(self):
+        """Обработчик нажатия кнопки мыши"""
+        self.mouse_pressed = True
+        # Сразу производим первый выстрел
+        self.shoot()
+
+    def on_mouse_release(self):
+        """Обработчик отпускания кнопки мыши"""
+        self.mouse_pressed = False
 
 if __name__ == "__main__":
     game = Game()

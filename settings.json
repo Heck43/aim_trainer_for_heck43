@@ -1,14 +1,14 @@
 {
-    "sensitivity": 20.0,
-    "fov": 120,
+    "sensitivity": 9.490533828735352,
+    "fov": 86,
     "resolution": "1366x768",
     "show_score": 1,
     "show_timer": 1,
     "volume": 100,
     "show_target_images": 0,
-    "damage_numbers": true,
-    "killfeed": true,
-    "show_fps": true,
+    "damage_numbers": 1,
+    "killfeed": 1,
+    "show_fps": 1,
     "weapon_position_x": 0.3,
     "weapon_position_y": 0.8,
     "weapon_position_z": -0.4,
@@ -24,7 +24,18 @@
     },
     "audio": {
         "music_enabled": 0,
-        "music_volume": 0.055482733994722366,
-        "current_track": "default_track1.mp3"
-    }
+        "music_volume": 0.0,
+        "current_track": "xz_ 111.mp3"
+    },
+    "recoil": {
+        "strength": 1.0,
+        "recovery_speed": 5.0,
+        "horizontal_randomness": 0.3,
+        "enabled": 0
+    },
+    "recoil_strength": 0.0,
+    "recoil_enabled": 0,
+    "screen_shake_intensity": 1.0,
+    "screen_shake_enabled": 1,
+    "target_count": 5
 }
