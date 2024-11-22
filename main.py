@@ -1,5 +1,5 @@
 from direct.showbase.ShowBase import ShowBase
-from panda3d.core import Point3, Vec3, Vec4, Vec2, WindowProperties, MouseWatcher, NodePath
+from panda3d.core import Point3, Vec3, Vec4, Vec2, Point2, WindowProperties, MouseWatcher, NodePath
 from panda3d.core import CollisionTraverser, CollisionNode, CollisionHandlerQueue
 from panda3d.core import CollisionRay, CollisionSphere, CollisionBox, BitMask32
 from panda3d.core import TextNode, TextureStage, Texture, TransparencyAttrib
@@ -8,8 +8,7 @@ from panda3d.core import CardMaker
 from direct.gui.OnscreenText import OnscreenText
 from direct.gui.DirectGui import DirectFrame
 from direct.task import Task
-from direct.interval.LerpInterval import LerpPosInterval
-from direct.interval.IntervalGlobal import Sequence, LerpColorScaleInterval, Parallel, LerpColorInterval, Func
+from direct.interval.IntervalGlobal import Sequence, Parallel, LerpColorScaleInterval, LerpColorInterval, LerpPosInterval, Wait, Func
 from direct.filter.CommonFilters import CommonFilters
 from menu import MainMenu
 from target import Target
@@ -43,9 +42,9 @@ class Game(ShowBase):
             'show_fps': True,
             'recoil_enabled': True,  # Включение/выключение отдачи
             'weapon_position': {
-                'x': 0.3,  # Правее от центра
-                'y': 0.8,  # Вперед от камеры
-                'z': -0.4  # Ниже центра
+                'x': 0.25,  # Чуть ближе к центру
+                'y': 0.6,   # Ближе к камере
+                'z': -0.3   # Чуть выше
             },
             # Игровые настройки
             'bhop_enabled': True,  # Включение/выключение распрыжки
@@ -54,7 +53,9 @@ class Game(ShowBase):
                 'music_volume': 0.5,
                 'current_track': 'default_track.mp3'
             },
-            'target_count': 10  # Добавляем настройку количества манекенов
+            'target_count': 10,  # Добавляем настройку количества манекенов
+            'bullet_traces': True,  # Новая настройка для следов пуль
+            'spread_enabled': True  # Новая настройка для разброса
         }
         
         # Загружаем настройки
@@ -157,17 +158,49 @@ class Game(ShowBase):
                 "cooldown": 0.2,  # Задержка между выстрелами
                 "damage": 25,
                 "recoil": {
-                    "pitch": (0.5, 1.0),  # Мин и макс вертикальной отдачи
-                    "yaw": (-0.3, 0.3),   # Мин и макс горизонтальной отдачи
-                }
+                    "pitch": (0.5, 1.0),  # Уменьшили отдачу по вертикали
+                    "yaw": (0.3, 0.3)  # Уменьшили отдачу по горизонтали
+                },
+                "spread": {
+                    "base": 0.02,        # Уменьшили с 0.15 до 0.02
+                    "max": 0.15,         # Уменьшили с 0.4 до 0.15
+                    "moving_mult": 1.5,   # Уменьшили с 2.0 до 1.5
+                    "jumping_mult": 2.0,  # Уменьшили с 3.0 до 2.0
+                    "recovery_time": 0.1  # Время восстановления точности
+                },
+                "sound": "sounds/pistol_shot.wav"  # Звук выстрела для пистолета
             },
             "rifle": {
                 "cooldown": 0.1,  # Быстрее стреляет
                 "damage": 20,     # Меньше урон
                 "recoil": {
-                    "pitch": (0.3, 0.6),  # Меньше вертикальная отдача
-                    "yaw": (-0.2, 0.2),   # Меньше разброс
-                }
+                    "pitch": (0.3, 0.6),  # Уменьшили отдачу по вертикали
+                    "yaw": (-0.2, 0.2)      # Уменьшили отдачу по горизонтали
+                },
+                "spread": {
+                    "base": 0.015,       # Уменьшили с 0.1 до 0.015
+                    "max": 0.12,         # Уменьшили с 0.35 до 0.12
+                    "moving_mult": 1.8,   # Уменьшили с 2.5 до 1.8
+                    "jumping_mult": 2.5,  # Уменьшили с 3.5 до 2.5
+                    "recovery_time": 0.08 # Время восстановления точности
+                },
+                "sound": "sounds/rifle_shot.wav"  # Звук выстрела для винтовки
+            },
+            "sniper": {  # Новое оружие - снайперская винтовка
+                "cooldown": 1.0,  # Медленная скорострельность
+                "damage": 100,    # Высокий урон
+                "recoil": {
+                    "pitch": (2.0, 3.0),    # Сильная отдача вверх
+                    "yaw": (-0.1, 0.1)      # Минимальный горизонтальный разброс
+                },
+                "spread": {
+                    "base": 0.001,        # Минимальный базовый разброс
+                    "max": 0.05,          # Небольшой максимальный разброс
+                    "moving_mult": 5.0,    # Большой штраф за движение
+                    "jumping_mult": 10.0,  # Огромный штраф за прыжки
+                    "recovery_time": 0.5   # Долгое восстановление точности
+                },
+                "sound": "sounds/sniper_shot.wav"  # Звук выстрела для снайперской винтовки
             }
         }
         
@@ -186,6 +219,9 @@ class Game(ShowBase):
         self.recoil_recovery_speed = 5.0  # Скорость возврата камеры
         self.recoil_recovery_delay = 0.1  # Задержка перед началом восстановления
         self.last_shot_time = 0
+        
+        # Добавляем параметры разброса
+        self.current_spread = 0.0  # Текущий разброс
         
         # Настройка камеры
         self.camera_height = 1.8
@@ -238,11 +274,22 @@ class Game(ShowBase):
         self.killfeed_slide_distance = 0.2  # Расстояние для slide анимации
         self.killfeed_duration = 5  # Длительность показа сообщения в секундах
         
+        # Список для хранения активных гильз
+        self.active_shells = []
+        
+        # Загружаем модель гильзы
+        self.shell_model = self.loader.loadModel("models/box")  # Временно используем box как гильзу
+        self.shell_model.setScale(0.02, 0.05, 0.02)  # Масштаб для гильзы
+        self.shell_model.setColor(0.8, 0.6, 0.2)  # Цвет латуни
+        
         # Настройка управления
         self.accept("escape", self.return_to_menu)
         self.accept("space", self.start_jump)
         self.accept("1", self.switch_weapon, ["rifle"])    # Клавиша 1 для винтовки
         self.accept("2", self.switch_weapon, ["pistol"])   # Клавиша 2 для пистолета
+        self.accept("3", self.switch_weapon, ["sniper"])   # Клавиша 3 для снайперской винтовки
+        self.accept("wheel_up", self.cycle_weapon, [1])    # Колесо мыши вверх для следующего оружия
+        self.accept("wheel_down", self.cycle_weapon, [-1]) # Колесо мыши вниз для предыдущего оружия
         
         # Инициализируем keyMap
         self.keyMap = {
@@ -272,6 +319,9 @@ class Game(ShowBase):
         
         # Добавляем задачу обновления текста урона
         self.taskMgr.add(self.update_damage_texts, "update_damage_texts")
+        
+        # Добавляем задачу обновления гильз
+        self.taskMgr.add(self.update_shells, "update_shells")
         
         # Set up collision traverser and handler
         self.cTrav = CollisionTraverser('Main traverser')
@@ -318,6 +368,40 @@ class Game(ShowBase):
 
         # Добавляем переменную для отслеживания зажатия кнопки
         self.mouse_pressed = False
+        
+        # Создаем родительский узел для трассеров пуль
+        self.bullet_traces = self.render.attachNewNode("bullet_traces")
+        self.traces = []  # Список активных трассеров
+        
+        # В __init__ добавляем новые переменные
+        self.is_aiming = False
+        self.default_weapon_pos = {}
+        self.ads_weapon_pos = {}
+        self.aim_transition = 0.0  # От 0 до 1, где 1 - полностью в прицеле
+        self.ads_sensitivity_multiplier = 0.6  # Замедление чувствительности при прицеливании
+        
+        # Сохраняем позиции оружия
+        for weapon in self.weapons:
+            # Стандартная позиция оружия
+            self.default_weapon_pos[weapon] = {
+                "pos": Point3(0.7, 1.0, -0.5),
+                "hpr": Vec3(0, 0, 0)
+            }
+            # Позиция при прицеливании
+            self.ads_weapon_pos[weapon] = {
+                "pos": Point3(0, 1.2, -0.3),
+                "hpr": Vec3(0, 0, 0)
+            }
+        
+        # Добавляем управление прицеливанием
+        self.accept("mouse3", self.start_aiming)  # ПКМ нажата
+        self.accept("mouse3-up", self.stop_aiming)  # ПКМ отпущена
+
+        self.ads_fov = {
+            "pistol": 65,
+            "rifle": 45,
+            "sniper": 30
+        }
 
     def create_text(self, x, y):
         return OnscreenText(
@@ -485,6 +569,40 @@ class Game(ShowBase):
         
         self.weapon_models["rifle"] = rifle
         
+        # Создаем снайперскую винтовку
+        sniper = NodePath("sniper")
+        sniper.reparentTo(self.weapon)
+        
+        # Дуло снайперской винтовки (длинный прямоугольник)
+        barrel = self.loader.loadModel("models/box")
+        barrel.setScale(0.05, 1.0, 0.05)  # Более длинное и тонкое
+        barrel.setPos(0, 1.5, -0.1)  # Выдвигаем дальше вперед
+        barrel.setColor(0.2, 0.2, 0.2)  # Тёмно-серый цвет
+        barrel.reparentTo(sniper)
+        
+        # Основная часть снайперской винтовки
+        body = self.loader.loadModel("models/box")
+        body.setScale(0.1, 0.5, 0.15)  # Шире и длиннее
+        body.setPos(0, 1.0, -0.1)  # Позиция тела
+        body.setColor(0.25, 0.25, 0.25)  # Серый цвет
+        body.reparentTo(sniper)
+        
+        # Приклад снайперской винтовки
+        stock = self.loader.loadModel("models/box")
+        stock.setScale(0.08, 0.4, 0.15)  # Размер приклада
+        stock.setPos(0, 0.6, -0.15)  # Позиция приклада
+        stock.setColor(0.3, 0.3, 0.3)  # Чуть светлее серый
+        stock.reparentTo(sniper)
+        
+        # Рукоять снайперской винтовки
+        grip = self.loader.loadModel("models/box")
+        grip.setScale(0.08, 0.1, 0.2)  # Размер рукояти
+        grip.setPos(0, 0.9, -0.3)  # Позиция рукояти
+        grip.setColor(0.3, 0.3, 0.3)  # Чуть светлее серый
+        grip.reparentTo(sniper)
+        
+        self.weapon_models["sniper"] = sniper
+        
         # Скрываем все оружия кроме текущего
         for weapon_name, model in self.weapon_models.items():
             if weapon_name == self.current_weapon:
@@ -529,18 +647,18 @@ class Game(ShowBase):
         start_pos = self.weapon.getPos()
         start_hpr = self.weapon.getHpr()
         
-        # Создаем отдачу (назад и вверх)
+        # Создаем отдачу (назад и вверх) с меньшими значениями
         recoil_pos = Point3(
             start_pos.getX(),  # X остается тем же
-            start_pos.getY() - 0.2,  # Сильнее назад
-            start_pos.getZ() + 0.1   # Сильнее вверх
+            start_pos.getY() - 0.08,  # Уменьшили отдачу назад с 0.1 до 0.08
+            start_pos.getZ() + 0.03   # Уменьшили подъем с 0.05 до 0.03
         )
         
-        # Отдача в повороте оружия
+        # Отдача в повороте оружия с меньшими значениями
         recoil_hpr = Vec3(
             start_hpr.getX(),     # Поворот влево-вправо
-            start_hpr.getY() + 15, # Поворот вверх
-            start_hpr.getZ() + random.uniform(-5, 5)  # Случайный наклон
+            start_hpr.getY() + 3, # Уменьшили поворот вверх с 5 до 3
+            start_hpr.getZ() + random.uniform(-1, 1)  # Уменьшили случайный наклон с (-2,2) до (-1,1)
         )
         
         # Создаем последовательность анимации
@@ -548,14 +666,14 @@ class Game(ShowBase):
             Parallel(
                 # Быстрое движение назад и вверх
                 self.weapon.posInterval(
-                    0.05,  # Длительность движения назад
+                    0.04,  # Уменьшили длительность движения назад с 0.05 до 0.04
                     recoil_pos,
                     start_pos,
                     blendType='easeOut'
                 ),
                 # Поворот оружия
                 self.weapon.hprInterval(
-                    0.05,
+                    0.04,
                     recoil_hpr,
                     start_hpr,
                     blendType='easeOut'
@@ -564,13 +682,13 @@ class Game(ShowBase):
             # Медленное возвращение в исходную позицию
             Parallel(
                 self.weapon.posInterval(
-                    0.15,  # Длительность возврата
+                    0.08,  # Уменьшили время возврата с 0.1 до 0.08
                     self.original_weapon_pos,
                     recoil_pos,
                     blendType='easeIn'
                 ),
                 self.weapon.hprInterval(
-                    0.15,
+                    0.08,
                     self.original_weapon_hpr,
                     recoil_hpr,
                     blendType='easeIn'
@@ -648,6 +766,7 @@ class Game(ShowBase):
         self.can_shoot = False
         
         # Play shooting sound
+        self.shot_sound = self.loader.loadSfx(self.weapons[self.current_weapon]["sound"])
         self.shot_sound.play()
         
         # Устанавливаем таймер на возможность следующего выстрела
@@ -657,8 +776,66 @@ class Game(ShowBase):
             'reset_shoot'
         )
         
+        # Создаем анимацию выброса гильзы
+        self.create_shell_casing()
+        
         # Получаем параметры текущего оружия
         weapon_params = self.weapons[self.current_weapon]
+        
+        if not self.mouseWatcherNode.hasMouse():
+            return
+            
+        # Получаем позицию мыши
+        mouse_pos = self.mouseWatcherNode.getMouse()
+        
+        # Применяем разброс только если он включен в настройках
+        if self.settings.get('spread_enabled', True):
+            spread_params = weapon_params["spread"]
+            
+            # Рассчитываем текущий разброс
+            current_time = globalClock.getFrameTime()
+            time_since_last_shot = current_time - self.last_shot_time
+            
+            # Восстановление точности со временем
+            if time_since_last_shot > spread_params["recovery_time"]:
+                self.current_spread = spread_params["base"]
+            else:
+                # Увеличиваем разброс при стрельбе
+                self.current_spread = min(
+                    self.current_spread + spread_params["base"] * 0.5,
+                    spread_params["max"]
+                )
+            
+            # Применяем множители разброса
+            final_spread = self.current_spread
+            
+            # Проверяем движение
+            is_moving = any(self.keyMap[key] for key in ["w", "s", "a", "d"])
+            if is_moving:
+                final_spread *= spread_params["moving_mult"]
+                
+            # Проверяем прыжок
+            if self.is_jumping:
+                final_spread *= spread_params["jumping_mult"]
+                
+            # Ограничиваем максимальный разброс
+            final_spread = min(final_spread, spread_params["max"])
+            
+            # Добавляем случайный разброс к позиции мыши
+            spread_x = random.uniform(-final_spread, final_spread)
+            spread_y = random.uniform(-final_spread, final_spread)
+            
+            # Применяем разброс к позиции мыши
+            spread_mouse_pos = Point2(
+                mouse_pos.getX() + spread_x,
+                mouse_pos.getY() + spread_y
+            )
+        else:
+            # Если разброс выключен, используем точную позицию мыши
+            spread_mouse_pos = mouse_pos
+        
+        # Создаем луч от камеры
+        self.ray.setFromLens(self.camNode, spread_mouse_pos.getX(), spread_mouse_pos.getY())
         
         # Применяем отдачу только если она включена в настройках
         if self.settings.get('recoil_enabled', True):
@@ -680,55 +857,57 @@ class Game(ShowBase):
             self.camera_pitch += recoil_pitch
             self.camera_heading += recoil_yaw
             
-            # Обновляем время последнего выстрела
-            self.last_shot_time = globalClock.getFrameTime()
-            
             # Анимация отдачи оружия
             self.animate_weapon_recoil()
         
-        if not self.mouseWatcherNode.hasMouse():
-            return
-            
-        # Получаем позицию мыши
-        mouse_pos = self.mouseWatcherNode.getMouse()
+        # Обновляем время последнего выстрела
+        self.last_shot_time = globalClock.getFrameTime()
         
-        # Создаем луч от камеры
-        from_pos = Point3(0, 0, 0)
-        from_pos = self.render.getRelativePoint(self.camera, from_pos)
-        
-        to_pos = Point3(mouse_pos.getX(), 1.0, mouse_pos.getY())
-        to_pos = self.render.getRelativePoint(self.camera, Point3(to_pos.getX() * 100, 100, to_pos.getZ() * 100))
-        
-        # Создаем CollisionRay для определения попадания
-        self.ray.setFromLens(self.camNode, mouse_pos.getX(), mouse_pos.getY())
-        
+        # Проверяем коллизии
         self.cTrav.traverse(self.render)
         
-        if self.cQueue.getNumEntries() > 0:
-            # Сортируем попадания по расстоянию
-            self.cQueue.sortEntries()
-            hit = self.cQueue.getEntry(0)
+        # Получаем начальную позицию пули (позиция оружия)
+        weapon_pos = self.weapon.getPos(self.render)
+        
+        # Получаем направление луча
+        direction = self.camera.getQuat().getForward()
+        
+        # Применяем разброс к направлению только если он включен
+        if self.settings.get('spread_enabled', True):
+            spread_x = random.uniform(-final_spread, final_spread)
+            spread_y = random.uniform(-final_spread, final_spread)
             
-            # Вызываем handle_collision для подсчета очков
-            self.handle_collision(hit)
-            
-            hit_pos = hit.getSurfacePoint(self.render)
-            
-            # Генерируем уникальное имя для задачи
-            task_name = f"remove_effect_{len(self.shot_effects)}"
-            
-            # Создаем задачу для удаления эффекта через 6 секунд
-            remove_task = self.taskMgr.doMethodLater(
-                6.0,
-                self.remove_specific_effect,
-                task_name,
-                extraArgs=[len(self.shot_effects)],
-                appendTask=True
+            # Применяем разброс к направлению
+            spread_direction = Vec3(
+                direction.getX() + spread_x,
+                direction.getY(),
+                direction.getZ() + spread_y
             )
-            
-            # Добавляем эффект в список
-            self.shot_effects.append((None, self.create_hit_marker(hit_pos), remove_task))
-
+            spread_direction.normalize()
+        else:
+            spread_direction = direction
+        
+        # Максимальная дистанция для следа пули
+        max_distance = 1000
+        
+        # Рассчитываем конечную точку луча
+        end_pos = weapon_pos + (spread_direction * max_distance)
+        
+        # Создаем след пули если включено в настройках
+        if self.settings.get('bullet_traces', True):
+            if self.cQueue.getNumEntries() > 0:
+                # Если попали в цель, используем точку попадания
+                self.cQueue.sortEntries()
+                entry = self.cQueue.getEntry(0)
+                hit_pos = entry.getSurfacePoint(self.render)
+                self.create_bullet_trace(weapon_pos, hit_pos)
+                
+                # Обработка попадания в цель
+                self.handle_collision(entry)
+            else:
+                # Если не попали, используем конечную точку луча
+                self.create_bullet_trace(weapon_pos, end_pos)
+        
     def remove_specific_effect(self, effect_index, task):
         if 0 <= effect_index < len(self.shot_effects):
             _, marker_node, _ = self.shot_effects[effect_index]
@@ -737,57 +916,40 @@ class Game(ShowBase):
             self.shot_effects[effect_index] = (None, None, None)
         return task.done
 
-    def show_damage(self, position, damage):
-        # Создаем текст с уроном
-        damage_text = TextNode('damage')
-        damage_text.setText(f"{damage}")
-        damage_text.setAlign(TextNode.ACenter)
+    def create_bullet_trace(self, start_pos, end_pos):
+        """Создает след пули от точки start_pos до end_pos"""
+        ls = LineSegs()
+        ls.setColor(1.0, 1.0, 0.8, 0.5)  # Желтоватый цвет с прозрачностью
+        ls.setThickness(2.0)
+        ls.moveTo(start_pos)
         
-        # Создаем узел для текста и прикрепляем к aspect2d (2D слой)
-        text_node_path = self.aspect2d.attachNewNode(damage_text)
+        # Если есть попадание, рисуем до точки попадания
+        if end_pos is not None:
+            ls.drawTo(end_pos)
+        else:
+            # Если нет попадания, рисуем до конечной точки
+            ls.drawTo(end_pos)
         
-        # Генерируем случайное смещение от центра
-        offset_x = random.uniform(-0.15, 0.15)
-        offset_y = random.uniform(-0.15, 0.15)
+        # Создаем узел из линии
+        trace = self.bullet_traces.attachNewNode(ls.create())
         
-        # Располагаем текст со случайным смещением от центра
-        text_node_path.setPos(offset_x, 0, offset_y)
+        # Добавляем эффект прозрачности
+        trace.setTransparency(TransparencyAttrib.MAlpha)
         
-        # Устанавливаем размер текста
-        text_node_path.setScale(0.07)
+        # Запускаем анимацию исчезновения следа
+        Sequence(
+            Wait(0.1),  # Ждем 0.1 секунды
+            LerpColorScaleInterval(trace, 0.2, Vec4(1, 1, 1, 0)),  # Плавно делаем прозрачным
+            Func(trace.removeNode)  # Удаляем след
+        ).start()
         
-        # Устанавливаем цвет в зависимости от урона
-        if damage >= 100:  # Хедшот
-            text_node_path.setColor(1, 0, 0, 1)  # Красный
-        elif damage >= 60:  # Высокий урон
-            text_node_path.setColor(1, 0.5, 0, 1)  # Оранжевый
-        else:  # Обычный урон
-            text_node_path.setColor(1, 1, 1, 1)  # Белый
-        
-        # Создаем анимацию движения вверх и исчезновения
-        fade_interval = LerpColorScaleInterval(
-            text_node_path,
-            0.5,  # Длительность
-            Vec4(1, 1, 1, 0),  # Конечное значение (прозрачный)
-            Vec4(1, 1, 1, 1)   # Начальное значение (непрозрачный)
-        )
-        
-        # Конечная позиция будет немного выше начальной, сохраняя случайное X-смещение
-        pos_interval = text_node_path.posInterval(
-            0.5,  # Длительность
-            Point3(offset_x, 0, offset_y + 0.2),  # Конечная позиция
-            Point3(offset_x, 0, offset_y)         # Начальная позиция
-        )
-        
-        # Запускаем обе анимации одновременно
-        Parallel(fade_interval, pos_interval).start()
-        
-        # Удаляем текст через 0.5 секунды
-        self.taskMgr.doMethodLater(
-            0.5,
-            lambda task: text_node_path.removeNode(),
-            'remove_damage_text'
-        )
+    def remove_trace(self, trace_np, task):
+        """Удаляет след пули после того как он исчез"""
+        # Удаляем след из списка активных
+        self.traces = [(np, fade) for np, fade in self.traces if np != trace_np]
+        # Удаляем узел
+        trace_np.removeNode()
+        return Task.done
 
     def update_damage_texts(self, task):
         current_time = globalClock.getFrameTime()
@@ -1073,23 +1235,12 @@ class Game(ShowBase):
         if self.show_score:
             self.score_text.setText(f"Score: {int(self.score)}")
         
-        # Создаем текст с уроном
-        damage_text = OnscreenText(
-            text=f"+{int(10 * self.combo_multiplier)}",
-            pos=(0, 0),
-            scale=0.05,
-            fg=(1, 1, 0, 1),
-            align=TextNode.ACenter
-        )
+        # Получаем точку попадания
+        hit_pos = entry.getSurfacePoint(self.render)
         
-        # Получаем позицию попадания в пространстве экрана
-        p3 = Point3()
-        p2 = Point2()
-        self.camera.getRelativePoint(self.render, hit_pos).projectOnScreen(self.win, p2)
-        screen_pos = (p2.getX(), p2.getZ())
-        
-        # Добавляем текст урона в список для анимации
-        self.damage_texts.append((damage_text, time.time(), screen_pos))
+        # Показываем текст с очками
+        if self.settings.get('damage_numbers', True):
+            self.spawn_damage_text(f"+{int(10 * self.combo_multiplier)}", hit_pos)
         
         # Удаляем цель и создаем новую
         self.targets.remove(target)
@@ -1349,7 +1500,11 @@ class Game(ShowBase):
             mouse_y = self.mouseWatcherNode.getMouseY()
             
             # Применяем замедление к чувствительности мыши
-            sensitivity = self.mouse_sensitivity * self.current_time_scale
+            sensitivity = self.settings["sensitivity"]
+            
+            # Применяем множитель чувствительности при прицеливании
+            if self.is_aiming:
+                sensitivity *= self.ads_sensitivity_multiplier
             
             self.camera_heading -= mouse_x * sensitivity
             self.camera_pitch += mouse_y * sensitivity
@@ -1377,7 +1532,152 @@ class Game(ShowBase):
         # Обновляем килфид
         self.update_killfeed_positions()
         
+        # Обновляем анимацию прицеливания
+        self.update_aim(task)
+        
         return task.cont
+
+    def update_aim(self, task):
+        """Обновление анимации прицеливания"""
+        if self.is_aiming and self.aim_transition < 1.0:
+            self.aim_transition = min(1.0, self.aim_transition + 0.1)
+        elif not self.is_aiming and self.aim_transition > 0.0:
+            self.aim_transition = max(0.0, self.aim_transition - 0.1)
+            
+        # Интерполяция позиции оружия
+        default_pos = self.default_weapon_pos[self.current_weapon]["pos"]
+        ads_pos = self.ads_weapon_pos[self.current_weapon]["pos"]
+        current_pos = default_pos + (ads_pos - default_pos) * self.aim_transition
+        
+        # Применяем позицию к модели оружия
+        self.weapon_models[self.current_weapon].setPos(current_pos)
+        
+        # Интерполяция FOV с использованием значения из настроек
+        default_fov = self.settings["fov"]  # FOV находится в корне настроек
+        target_fov = default_fov + (self.ads_fov[self.current_weapon] - default_fov) * self.aim_transition
+        base.camLens.setFov(target_fov)
+        
+        # Изменение чувствительности мыши при прицеливании
+        base_sensitivity = self.settings["sensitivity"]
+        aim_sensitivity = base_sensitivity * self.ads_sensitivity_multiplier
+        self.mouse_sensitivity = base_sensitivity + (aim_sensitivity - base_sensitivity) * self.aim_transition
+        
+        return task.cont
+
+    def start_aiming(self):
+        """Начало прицеливания"""
+        self.is_aiming = True
+        
+    def stop_aiming(self):
+        """Конец прицеливания"""
+        self.is_aiming = False
+
+    def create_shell_casing(self):
+        """Создает анимацию выброса гильзы"""
+        # Получаем текущую модель оружия
+        current_weapon_model = self.weapon_models[self.current_weapon]
+        
+        # Создаем копию модели гильзы
+        shell = self.shell_model.copyTo(render)
+        
+        # Определяем точку выброса относительно модели оружия
+        if self.current_weapon == "pistol":
+            eject_offset = Vec3(0.1, 0.9, -0.1)
+        elif self.current_weapon == "rifle":
+            eject_offset = Vec3(0.1, 0.9, -0.05)
+        else:  # sniper
+            eject_offset = Vec3(0.1, 1.1, -0.05)
+
+        # Создаем пустой узел как родитель для гильзы
+        shell_parent = render.attachNewNode("shell_parent")
+        shell_parent.setPos(current_weapon_model.getPos(render))
+        shell_parent.setHpr(current_weapon_model.getHpr(render))
+        
+        # Привязываем гильзу к родительскому узлу и устанавливаем смещение
+        shell.reparentTo(shell_parent)
+        shell.setPos(eject_offset)
+        
+        # Получаем мировые координаты точки выброса
+        shell.wrtReparentTo(render)  # Переносим в мировые координаты
+        
+        # Базовые векторы для расчета направления выброса
+        weapon_quat = current_weapon_model.getQuat(render)
+        right = weapon_quat.getRight()
+        up = weapon_quat.getUp()
+        forward = weapon_quat.getForward()
+        
+        # Рассчитываем начальную скорость в мировых координатах
+        ejection_speed = 3.0
+        vertical_speed = 1.0
+        
+        # Основное направление - вправо от оружия
+        initial_velocity = Vec3()
+        initial_velocity += right * ejection_speed
+        initial_velocity += up * vertical_speed
+        
+        # Добавляем случайное отклонение
+        initial_velocity += Vec3(
+            random.uniform(-0.2, 0.2),
+            random.uniform(-0.2, 0.2),
+            random.uniform(0, 0.5)
+        )
+        
+        # Случайное вращение для реалистичности
+        angular_velocity = Vec3(
+            random.uniform(-720, 720),
+            random.uniform(-720, 720),
+            random.uniform(-720, 720)
+        )
+        
+        # Добавляем гильзу в список активных
+        shell_data = {
+            'model': shell,
+            'velocity': initial_velocity,
+            'angular_velocity': angular_velocity,
+            'time': 0
+        }
+        self.active_shells.append(shell_data)
+        
+        # Запускаем задачу для удаления гильзы через 2 секунды
+        taskMgr.doMethodLater(2.0, self.remove_shell, 'remove_shell', 
+                            extraArgs=[shell_data], appendTask=True)
+
+    def update_shells(self, task):
+        """Обновляет физику гильз"""
+        dt = globalClock.getDt()
+        gravity = Vec3(0, 0, -9.8)
+        
+        for shell in self.active_shells:
+            # Обновляем время
+            shell['time'] += dt
+            
+            # Обновляем позицию
+            current_pos = shell['model'].getPos()
+            shell['velocity'] += gravity * dt
+            new_pos = current_pos + shell['velocity'] * dt
+            shell['model'].setPos(new_pos)
+            
+            # Обновляем вращение
+            current_hpr = shell['model'].getHpr()
+            rotation = shell['angular_velocity'] * dt
+            new_hpr = current_hpr + rotation
+            shell['model'].setHpr(new_hpr)
+            
+            # Проверяем столкновение с полом
+            if new_pos.getZ() < 0:
+                new_pos.setZ(0)
+                shell['velocity'] = Vec3(0, 0, 0)
+                shell['angular_velocity'] = Vec3(0, 0, 0)
+                shell['model'].setPos(new_pos)
+        
+        return task.cont
+
+    def remove_shell(self, shell_data, task):
+        """Удаляет гильзу"""
+        if shell_data in self.active_shells:
+            self.active_shells.remove(shell_data)
+            shell_data['model'].removeNode()
+        return task.done
 
     def apply_settings(self, new_settings):
         # Обновляем настройки
@@ -1551,6 +1851,13 @@ class Game(ShowBase):
                     model.show()
                 else:
                     model.hide()
+
+    def cycle_weapon(self, direction):
+        """Переключает оружие в цикле"""
+        weapons_list = list(self.weapons.keys())
+        current_index = weapons_list.index(self.current_weapon)
+        new_index = (current_index + direction) % len(weapons_list)
+        self.switch_weapon(weapons_list[new_index])
 
     def on_mouse_press(self):
         """Обработчик нажатия кнопки мыши"""

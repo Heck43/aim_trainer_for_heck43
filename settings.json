@@ -1,6 +1,6 @@
 {
-    "sensitivity": 9.490533828735352,
-    "fov": 86,
+    "sensitivity": 20.0,
+    "fov": 97,
     "resolution": "1366x768",
     "show_score": 1,
     "show_timer": 1,
@@ -24,8 +24,8 @@
     },
     "audio": {
         "music_enabled": 0,
-        "music_volume": 0.0,
-        "current_track": "xz_ 111.mp3"
+        "music_volume": 0.11096552759408951,
+        "current_track": "default_track1.mp3"
     },
     "recoil": {
         "strength": 1.0,
@@ -34,8 +34,9 @@
         "enabled": 0
     },
     "recoil_strength": 0.0,
-    "recoil_enabled": 0,
+    "recoil_enabled": 1,
     "screen_shake_intensity": 1.0,
     "screen_shake_enabled": 1,
-    "target_count": 5
+    "target_count": 10,
+    "spread_enabled": 0
 }
