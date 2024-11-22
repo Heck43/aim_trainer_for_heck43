@@ -8,7 +8,7 @@ from panda3d.core import CardMaker
 from direct.gui.OnscreenText import OnscreenText
 from direct.gui.DirectGui import DirectFrame
 from direct.task import Task
-from direct.interval.IntervalGlobal import Sequence, Parallel, LerpColorScaleInterval, LerpColorInterval, LerpPosInterval, Wait, Func
+from direct.interval.IntervalGlobal import Sequence, Parallel, LerpColorScaleInterval, LerpColorInterval, LerpPosInterval, LerpHprInterval, Wait, Func
 from direct.filter.CommonFilters import CommonFilters
 from menu import MainMenu
 from target import Target
@@ -402,6 +402,10 @@ class Game(ShowBase):
             "rifle": 45,
             "sniper": 30
         }
+
+        # Анимация оружия
+        self.weapon_animation = None
+        self.is_drawing_weapon = False
 
     def create_text(self, x, y):
         return OnscreenText(
@@ -1572,6 +1576,216 @@ class Game(ShowBase):
         """Конец прицеливания"""
         self.is_aiming = False
 
+    def switch_weapon(self, weapon_name):
+        if weapon_name in self.weapon_models and weapon_name != self.current_weapon:
+            # Если есть текущая анимация, принудительно завершаем её
+            if self.weapon_animation:
+                self.weapon_animation.finish()
+                self.weapon_animation = None
+            
+            # Скрываем текущее оружие
+            if self.current_weapon:
+                self.weapon_models[self.current_weapon].hide()
+            
+            # Обновляем текущее оружие
+            self.current_weapon = weapon_name
+            self.weapon_model = self.weapon_models[weapon_name]
+            self.weapon_model.show()
+            
+            # Обновляем параметры стрельбы для нового оружия
+            self.shoot_cooldown = self.weapons[weapon_name]["cooldown"]
+            self.last_shot_time = 0  # Сбрасываем время последнего выстрела
+            
+            # Запускаем анимацию доставания оружия
+            self.play_weapon_draw_animation()
+
+    def play_weapon_draw_animation(self):
+        # Если есть текущая анимация, принудительно завершаем её
+        if self.weapon_animation:
+            self.weapon_animation.finish()
+            self.weapon_animation = None
+        
+        self.is_drawing_weapon = True
+        
+        # Начальная позиция (оружие внизу и повернуто)
+        self.weapon_model.set_pos(0.25, 0.6, -1.0)
+        self.weapon_model.set_hpr(30, -30, 0)
+        
+        # Создаем последовательность анимации
+        pos_interval = LerpPosInterval(
+            self.weapon_model,
+            duration=0.4,
+            pos=Point3(0.25, 0.6, -0.3),
+            startPos=Point3(0.25, 0.6, -1.0),
+            blendType='easeOut'
+        )
+        
+        rot_interval = LerpHprInterval(
+            self.weapon_model,
+            duration=0.4,
+            hpr=Vec3(0, 0, 0),
+            startHpr=Vec3(30, -30, 0),
+            blendType='easeOut'
+        )
+        
+        # Комбинируем анимации позиции и поворота
+        self.weapon_animation = Parallel(
+            pos_interval,
+            rot_interval,
+            name="weapon_draw"
+        )
+        
+        # Добавляем функцию завершения
+        def finish_animation():
+            self.is_drawing_weapon = False
+            self.weapon_animation = None
+        
+        self.weapon_animation.setDoneEvent('weaponDrawComplete')
+        self.accept('weaponDrawComplete', finish_animation)
+        
+        # Запускаем анимацию
+        self.weapon_animation.start()
+
+    def update_mouse_sensitivity(self):
+        """Обновляет чувствительность мыши на основе настроек"""
+        self.mouse_sensitivity = self.settings.get('sensitivity', self.DEFAULT_SETTINGS['sensitivity'])
+
+    def setup_mouse(self):
+        """Настраивает управление мышью"""
+        # Скрываем курсор мыши
+        props = WindowProperties()
+        props.setCursorHidden(True)
+        # Устанавливаем курсор в центр экрана
+        props.setMouseMode(WindowProperties.M_relative)
+        base.win.requestProperties(props)
+        
+        # Отключаем стандартное управление камерой
+        base.disableMouse()
+        
+        # Настраиваем чувствительность мыши
+        self.mouse_sensitivity = self.settings.get('sensitivity', self.DEFAULT_SETTINGS['sensitivity'])
+        
+        # Добавляем обработчик движения мыши
+        self.accept("mouse1", self.on_mouse_press)
+        self.accept("mouse1-up", self.on_mouse_release)
+        
+        # Устанавливаем задачу для обработки движения мыши
+        taskMgr.add(self.mouseTask, 'mouseTask')
+        
+    def mouseTask(self, task):
+        """Обрабатывает движение мыши"""
+        if task.time < 0.05:  # Пропускаем первый кадр
+            return Task.cont
+            
+        # Получаем изменение позиции мыши
+        md = base.win.getPointer(0)
+        x = md.getX()
+        y = md.getY()
+        
+        if base.win.movePointer(0, base.win.getXSize()//2, base.win.getYSize()//2):
+            # Рассчитываем изменение положения
+            deltaX = x - base.win.getXSize()//2
+            deltaY = y - base.win.getYSize()//2
+            
+            # Применяем чувствительность
+            sensitivity_factor = 25.0  # Увеличено с 10.0 до 25.0
+            deltaX *= self.mouse_sensitivity * sensitivity_factor
+            deltaY *= self.mouse_sensitivity * sensitivity_factor
+            
+            # Обновляем поворот камеры
+            heading = self.camera.getH() - deltaX * 0.3  # Увеличено с 0.2 до 0.3
+            pitch = self.camera.getP() + deltaY * 0.3
+            
+            # Ограничиваем угол обзора по вертикали
+            pitch = min(90, max(-90, pitch))
+            
+            self.camera.setH(heading)
+            self.camera.setP(pitch)
+            
+            # Поворачиваем оружие вместе с камерой
+            if hasattr(self, 'weapon'):
+                self.weapon.setH(heading)
+                self.weapon.setP(pitch)
+        
+        return Task.cont
+
+    def setup_audio(self):
+        """Setup and start background music"""
+        audio_settings = self.settings.get('audio', self.DEFAULT_SETTINGS['audio'])
+        
+        if audio_settings['music_enabled']:
+            self.play_music(audio_settings['current_track'], audio_settings['music_volume'])
+
+    def play_music(self, track_name, volume=0.5):
+        """Play background music with specified volume"""
+        if self.music:
+            self.music.stop()
+        
+        # Get the music file path
+        music_path = f"music/{track_name}"
+        
+        try:
+            self.music = loader.loadSfx(music_path)
+            if self.music:
+                self.music.setLoop(True)
+                self.music.setVolume(volume)
+                self.music.play()
+                self.current_music_path = music_path
+        except Exception as e:
+            print(f"Error loading music: {e}")
+
+    def update_music_volume(self, volume):
+        """Update the volume of currently playing music"""
+        if self.music:
+            self.music.setVolume(volume)
+            
+        # Update settings
+        if 'audio' not in self.settings:
+            self.settings['audio'] = self.DEFAULT_SETTINGS['audio'].copy()
+        self.settings['audio']['music_volume'] = volume
+        self.save_settings()
+
+    def change_music_track(self, track_name):
+        """Change the current music track"""
+        if 'audio' not in self.settings:
+            self.settings['audio'] = self.DEFAULT_SETTINGS['audio'].copy()
+            
+        self.settings['audio']['current_track'] = track_name
+        self.save_settings()
+        
+        if self.settings['audio']['music_enabled']:
+            self.play_music(track_name, self.settings['audio']['music_volume'])
+
+    def toggle_music(self, enabled):
+        """Toggle background music on/off"""
+        if 'audio' not in self.settings:
+            self.settings['audio'] = self.DEFAULT_SETTINGS['audio'].copy()
+            
+        self.settings['audio']['music_enabled'] = enabled
+        self.save_settings()
+        
+        if enabled:
+            self.play_music(self.settings['audio']['current_track'], self.settings['audio']['music_volume'])
+        elif self.music:
+            self.music.stop()
+
+    def cycle_weapon(self, direction):
+        """Переключает оружие в цикле"""
+        weapons_list = list(self.weapons.keys())
+        current_index = weapons_list.index(self.current_weapon)
+        new_index = (current_index + direction) % len(weapons_list)
+        self.switch_weapon(weapons_list[new_index])
+
+    def on_mouse_press(self):
+        """Обработчик нажатия кнопки мыши"""
+        self.mouse_pressed = True
+        # Сразу производим первый выстрел
+        self.shoot()
+
+    def on_mouse_release(self):
+        """Обработчик отпускания кнопки мыши"""
+        self.mouse_pressed = False
+
     def create_shell_casing(self):
         """Создает анимацию выброса гильзы"""
         # Получаем текущую модель оружия
@@ -1714,160 +1928,6 @@ class Game(ShowBase):
                 json.dump(self.settings, f, indent=4)
         except Exception as e:
             print(f"Error saving settings: {e}")
-
-    def update_mouse_sensitivity(self):
-        """Обновляет чувствительность мыши на основе настроек"""
-        self.mouse_sensitivity = self.settings.get('sensitivity', self.DEFAULT_SETTINGS['sensitivity'])
-
-    def setup_mouse(self):
-        """Настраивает управление мышью"""
-        # Скрываем курсор мыши
-        props = WindowProperties()
-        props.setCursorHidden(True)
-        # Устанавливаем курсор в центр экрана
-        props.setMouseMode(WindowProperties.M_relative)
-        base.win.requestProperties(props)
-        
-        # Отключаем стандартное управление камерой
-        base.disableMouse()
-        
-        # Настраиваем чувствительность мыши
-        self.mouse_sensitivity = self.settings.get('sensitivity', self.DEFAULT_SETTINGS['sensitivity'])
-        
-        # Добавляем обработчик движения мыши
-        self.accept("mouse1", self.on_mouse_press)
-        self.accept("mouse1-up", self.on_mouse_release)
-        
-        # Устанавливаем задачу для обработки движения мыши
-        taskMgr.add(self.mouseTask, 'mouseTask')
-        
-    def mouseTask(self, task):
-        """Обрабатывает движение мыши"""
-        if task.time < 0.05:  # Пропускаем первый кадр
-            return Task.cont
-            
-        # Получаем изменение позиции мыши
-        md = base.win.getPointer(0)
-        x = md.getX()
-        y = md.getY()
-        
-        if base.win.movePointer(0, base.win.getXSize()//2, base.win.getYSize()//2):
-            # Рассчитываем изменение положения
-            deltaX = x - base.win.getXSize()//2
-            deltaY = y - base.win.getYSize()//2
-            
-            # Применяем чувствительность
-            sensitivity_factor = 25.0  # Увеличено с 10.0 до 25.0
-            deltaX *= self.mouse_sensitivity * sensitivity_factor
-            deltaY *= self.mouse_sensitivity * sensitivity_factor
-            
-            # Обновляем поворот камеры
-            heading = self.camera.getH() - deltaX * 0.3  # Увеличено с 0.2 до 0.3
-            pitch = self.camera.getP() + deltaY * 0.3
-            
-            # Ограничиваем угол обзора по вертикали
-            pitch = min(90, max(-90, pitch))
-            
-            self.camera.setH(heading)
-            self.camera.setP(pitch)
-            
-            # Поворачиваем оружие вместе с камерой
-            if hasattr(self, 'weapon'):
-                self.weapon.setH(heading)
-                self.weapon.setP(pitch)
-        
-        return Task.cont
-
-    def setup_audio(self):
-        """Setup and start background music"""
-        audio_settings = self.settings.get('audio', self.DEFAULT_SETTINGS['audio'])
-        
-        if audio_settings['music_enabled']:
-            self.play_music(audio_settings['current_track'], audio_settings['music_volume'])
-
-    def play_music(self, track_name, volume=0.5):
-        """Play background music with specified volume"""
-        if self.music:
-            self.music.stop()
-        
-        # Get the music file path
-        music_path = f"music/{track_name}"
-        
-        try:
-            self.music = loader.loadSfx(music_path)
-            if self.music:
-                self.music.setLoop(True)
-                self.music.setVolume(volume)
-                self.music.play()
-                self.current_music_path = music_path
-        except Exception as e:
-            print(f"Error loading music: {e}")
-
-    def update_music_volume(self, volume):
-        """Update the volume of currently playing music"""
-        if self.music:
-            self.music.setVolume(volume)
-            
-        # Update settings
-        if 'audio' not in self.settings:
-            self.settings['audio'] = self.DEFAULT_SETTINGS['audio'].copy()
-        self.settings['audio']['music_volume'] = volume
-        self.save_settings()
-
-    def change_music_track(self, track_name):
-        """Change the current music track"""
-        if 'audio' not in self.settings:
-            self.settings['audio'] = self.DEFAULT_SETTINGS['audio'].copy()
-            
-        self.settings['audio']['current_track'] = track_name
-        self.save_settings()
-        
-        if self.settings['audio']['music_enabled']:
-            self.play_music(track_name, self.settings['audio']['music_volume'])
-
-    def toggle_music(self, enabled):
-        """Toggle background music on/off"""
-        if 'audio' not in self.settings:
-            self.settings['audio'] = self.DEFAULT_SETTINGS['audio'].copy()
-            
-        self.settings['audio']['music_enabled'] = enabled
-        self.save_settings()
-        
-        if enabled:
-            self.play_music(self.settings['audio']['current_track'], self.settings['audio']['music_volume'])
-        elif self.music:
-            self.music.stop()
-
-    def switch_weapon(self, weapon_name):
-        """Переключает оружие"""
-        if weapon_name in self.weapons and hasattr(self, 'weapon_models'):
-            # Обновляем текущее оружие
-            self.current_weapon = weapon_name
-            self.shoot_cooldown = self.weapons[weapon_name]["cooldown"]
-            
-            # Переключаем видимость моделей
-            for name, model in self.weapon_models.items():
-                if name == weapon_name:
-                    model.show()
-                else:
-                    model.hide()
-
-    def cycle_weapon(self, direction):
-        """Переключает оружие в цикле"""
-        weapons_list = list(self.weapons.keys())
-        current_index = weapons_list.index(self.current_weapon)
-        new_index = (current_index + direction) % len(weapons_list)
-        self.switch_weapon(weapons_list[new_index])
-
-    def on_mouse_press(self):
-        """Обработчик нажатия кнопки мыши"""
-        self.mouse_pressed = True
-        # Сразу производим первый выстрел
-        self.shoot()
-
-    def on_mouse_release(self):
-        """Обработчик отпускания кнопки мыши"""
-        self.mouse_pressed = False
 
 if __name__ == "__main__":
     game = Game()

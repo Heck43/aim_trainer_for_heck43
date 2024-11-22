@@ -1,6 +1,6 @@
 {
     "sensitivity": 20.0,
-    "fov": 97,
+    "fov": 109,
     "resolution": "1366x768",
     "show_score": 1,
     "show_timer": 1,
@@ -37,6 +37,6 @@
     "recoil_enabled": 1,
     "screen_shake_intensity": 1.0,
     "screen_shake_enabled": 1,
-    "target_count": 10,
-    "spread_enabled": 0
+    "target_count": 30,
+    "spread_enabled": 1
 }
