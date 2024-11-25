@@ -242,7 +242,7 @@ class MainMenu:
 
         # Show Images checkbox
         show_images_label = DirectLabel(
-            text="Show Target Images",
+            text="NSFW mode",
             pos=(-0.6, 0, 0),
             parent=graphics_tab,
             **self.settings_style
@@ -678,14 +678,18 @@ class MainMenu:
     def get_available_tracks(self):
         """Get list of available music tracks"""
         try:
+            # Сначала пробуем найти файлы в папке music
             music_dir = "music"
-            if not os.path.exists(music_dir):
-                os.makedirs(music_dir)
-            tracks = [f for f in os.listdir(music_dir) if f.endswith('.mp3')]
-            return tracks if tracks else ['default_track.mp3']
+            if os.path.exists(music_dir):
+                tracks = [f for f in os.listdir(music_dir) if f.endswith('.mp3')]
+                if tracks:
+                    return tracks
+
+            # Если папки нет или она пуста, возвращаем список доступных треков
+            return ['default_track1.mp3', 'default_track2.mp3', 'xz_ 111.mp3']
         except Exception as e:
             print(f"Error getting music tracks: {e}")
-            return ['default_track.mp3']
+            return ['default_track1.mp3']  # Возвращаем хотя бы один трек
 
     def toggle_music(self, enabled):
         """Toggle background music"""

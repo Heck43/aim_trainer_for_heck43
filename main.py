@@ -12,6 +12,7 @@ from direct.interval.IntervalGlobal import Sequence, Parallel, LerpColorScaleInt
 from direct.filter.CommonFilters import CommonFilters
 from menu import MainMenu
 from target import Target
+from splash_screen import SplashScreen
 import random
 import math
 import time
@@ -36,7 +37,7 @@ class Game(ShowBase):
             'show_score': True,
             'show_timer': True,
             'volume': 100,
-            'show_target_images': True,  # Новая настройка для отображения картинок
+            'show_target_images': True,  # Включаем отображение картинок по умолчанию
             'damage_numbers': True,
             'killfeed': True,
             'show_fps': True,
@@ -51,7 +52,7 @@ class Game(ShowBase):
             'audio': {
                 'music_enabled': True,
                 'music_volume': 0.5,
-                'current_track': 'default_track.mp3'
+                'current_track': 'default_track1.mp3'  # Используем существующий файл
             },
             'target_count': 10,  # Добавляем настройку количества манекенов
             'bullet_traces': True,  # Новая настройка для следов пуль
@@ -72,7 +73,12 @@ class Game(ShowBase):
         props = WindowProperties()
         props.setSize(width, height)
         self.win.requestProperties(props)
-        
+
+        # Start with splash screen, then initialize menu
+        self.menu = None
+        self.splash = SplashScreen(self)
+        self.splash.start()
+
         # Игровая статистика
         self.score = 0
         self.combo_multiplier = 1.0  # Множитель комбо
@@ -339,10 +345,6 @@ class Game(ShowBase):
         # Настройка выхода из игры
         self.accept("window-event", self.cleanup)
         
-        # Создаем главное меню
-        self.main_menu = MainMenu(self)
-        self.main_menu.show()
-        
         # Параметры эффектов при попадании
         self.current_time_scale = 1.0   # Текущий масштаб времени
         self.target_time_scale = 1.0    # Целевой масштаб времени
@@ -406,6 +408,8 @@ class Game(ShowBase):
         # Анимация оружия
         self.weapon_animation = None
         self.is_drawing_weapon = False
+
+        self.is_splash_screen_active = True  # Add this flag
 
     def create_text(self, x, y):
         return OnscreenText(
@@ -707,6 +711,9 @@ class Game(ShowBase):
 
     def start_jump(self):
         """Начинает прыжок и обновляет комбо прыжков"""
+        if self.is_splash_screen_active:  # Check if splash screen is active
+            return  # Ignore all actions during splash screen
+        
         if not self.is_jumping:
             # Увеличиваем множитель комбо при последовательных прыжках только если распрыжка включена
             current_time = time.time()
@@ -764,6 +771,9 @@ class Game(ShowBase):
         return task.done
 
     def shoot(self):
+        if self.is_splash_screen_active:  # Check if splash screen is active
+            return  # Ignore all actions during splash screen
+        
         if not self.can_shoot:
             return
             
@@ -992,28 +1002,43 @@ class Game(ShowBase):
         self.damage_texts.clear()
 
     def return_to_menu(self):
-        # Скрываем UI элементы
-        self.score_text.hide()
-        self.timer_text.hide()
-        self.taskMgr.remove("timer_task")
-        
+        # Ignore during splash screen
+        if self.is_splash_screen_active:
+            return
+            
+        # Hide UI elements if they exist
+        if hasattr(self, 'score_text'):
+            self.score_text.hide()
+        if hasattr(self, 'timer_text'):
+            self.timer_text.hide()
+            
         # Отключаем игровые компоненты
         self.taskMgr.remove("update")
         self.ignore("mouse1")
         
         # Очищаем старые цели
-        for target in self.targets:
-            target.destroy()
-        self.targets.clear()
+        if hasattr(self, 'targets'):
+            for target in self.targets:
+                target.destroy()
+            self.targets.clear()
         
         # Очищаем оружие если оно есть
         if hasattr(self, 'weapon'):
             self.weapon.removeNode()
+            
+        if hasattr(self, 'taskMgr'):
+            self.taskMgr.remove("timer_task")
         
-        # Показываем меню
-        self.main_menu.show()
+        # Show or create menu
+        if not hasattr(self, 'main_menu'):
+            self.show_main_menu()
+        else:
+            self.main_menu.show()
 
     def start_game(self):
+        if self.is_splash_screen_active:  # Check if splash screen is active
+            return  # Ignore all actions during splash screen
+        
         # Настраиваем окно для игры
         props = WindowProperties()
         props.setCursorHidden(True)
@@ -1236,7 +1261,7 @@ class Game(ShowBase):
         self.last_hit_time = current_time
         
         # Обновляем текст счета
-        if self.show_score:
+        if hasattr(self, 'score_text') and self.show_score:
             self.score_text.setText(f"Score: {int(self.score)}")
         
         # Получаем точку попадания
@@ -1397,6 +1422,9 @@ class Game(ShowBase):
 
     def update(self, task):
         """Обновление состояния игры"""
+        if self.is_splash_screen_active:  # Check if splash screen is active
+            return task.cont  # Continue but ignore input during splash screen
+        
         dt = globalClock.getDt()
         
         # Обновляем FPS
@@ -1577,6 +1605,9 @@ class Game(ShowBase):
         self.is_aiming = False
 
     def switch_weapon(self, weapon_name):
+        if self.is_splash_screen_active:  # Check if splash screen is active
+            return  # Ignore all actions during splash screen
+        
         if weapon_name in self.weapon_models and weapon_name != self.current_weapon:
             # Если есть текущая анимация, принудительно завершаем её
             if self.weapon_animation:
@@ -1718,6 +1749,9 @@ class Game(ShowBase):
 
     def play_music(self, track_name, volume=0.5):
         """Play background music with specified volume"""
+        if self.is_splash_screen_active:  # Check if splash screen is active
+            return  # Ignore all actions during splash screen
+        
         if self.music:
             self.music.stop()
         
@@ -1770,7 +1804,9 @@ class Game(ShowBase):
             self.music.stop()
 
     def cycle_weapon(self, direction):
-        """Переключает оружие в цикле"""
+        if self.is_splash_screen_active:  # Check if splash screen is active
+            return  # Ignore all actions during splash screen
+        
         weapons_list = list(self.weapons.keys())
         current_index = weapons_list.index(self.current_weapon)
         new_index = (current_index + direction) % len(weapons_list)
@@ -1778,16 +1814,25 @@ class Game(ShowBase):
 
     def on_mouse_press(self):
         """Обработчик нажатия кнопки мыши"""
+        if self.is_splash_screen_active:  # Check if splash screen is active
+            return  # Ignore all actions during splash screen
+        
         self.mouse_pressed = True
         # Сразу производим первый выстрел
         self.shoot()
 
     def on_mouse_release(self):
         """Обработчик отпускания кнопки мыши"""
+        if self.is_splash_screen_active:  # Check if splash screen is active
+            return  # Ignore all actions during splash screen
+        
         self.mouse_pressed = False
 
     def create_shell_casing(self):
         """Создает анимацию выброса гильзы"""
+        if self.is_splash_screen_active:  # Check if splash screen is active
+            return  # Ignore all actions during splash screen
+        
         # Получаем текущую модель оружия
         current_weapon_model = self.weapon_models[self.current_weapon]
         
@@ -1858,6 +1903,9 @@ class Game(ShowBase):
 
     def update_shells(self, task):
         """Обновляет физику гильз"""
+        if self.is_splash_screen_active:  # Check if splash screen is active
+            return task.cont  # Continue but ignore input during splash screen
+        
         dt = globalClock.getDt()
         gravity = Vec3(0, 0, -9.8)
         
@@ -1928,6 +1976,12 @@ class Game(ShowBase):
                 json.dump(self.settings, f, indent=4)
         except Exception as e:
             print(f"Error saving settings: {e}")
+
+    def show_main_menu(self):
+        """Called by splash screen when it's done"""
+        if self.menu is None:
+            self.menu = MainMenu(self)
+        self.menu.show()
 
 if __name__ == "__main__":
     game = Game()

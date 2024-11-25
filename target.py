@@ -21,7 +21,16 @@ class Target:
         self.is_active = True
         
         # Выбираем случайную текстуру
-        self.texture_path = random.choice(self.TARGET_TEXTURES)
+        try:
+            self.texture_path = random.choice(self.TARGET_TEXTURES)
+            # Пробуем загрузить текстуру
+            tex = self.game.loader.loadTexture(self.texture_path)
+            if not tex:
+                # Если не удалось загрузить, используем первую текстуру
+                self.texture_path = self.TARGET_TEXTURES[0]
+        except:
+            # В случае ошибки используем первую текстуру
+            self.texture_path = self.TARGET_TEXTURES[0]
         
         self.create_model()
         self.update_visibility()
@@ -66,13 +75,16 @@ class Target:
         self.visual = self.model.attachNewNode(cm.generate())
         
         # Load and apply texture
-        if os.path.exists(self.texture_path):
+        try:
             tex = self.game.loader.loadTexture(self.texture_path)
-            self.visual.setTexture(tex)
-            self.visual.setTransparency(1)  # 1 = M_alpha
-            self.visual.setBin("transparent", 0)
-            self.visual.setDepthWrite(False)
-            
+            if tex:
+                self.visual.setTexture(tex)
+                self.visual.setTransparency(1)  # 1 = M_alpha
+                self.visual.setBin("transparent", 0)
+                self.visual.setDepthWrite(False)
+        except:
+            print(f"Error loading texture: {self.texture_path}")
+        
         # Create collision geometry
         # Head (sphere)
         head_node = CollisionNode('target_head')
@@ -135,14 +147,28 @@ class Target:
         self.is_active = True
         
         # Выбираем новую случайную текстуру
-        self.texture_path = random.choice(self.TARGET_TEXTURES)
-        if os.path.exists(self.texture_path):
+        try:
+            self.texture_path = random.choice(self.TARGET_TEXTURES)
+            # Пробуем загрузить текстуру
             tex = self.game.loader.loadTexture(self.texture_path)
-            self.visual.setTexture(tex)
-            # Настраиваем правильную прозрачность
-            self.visual.setTransparency(1)  # 1 = M_alpha
-            self.visual.setBin("transparent", 0)
-            self.visual.setDepthWrite(False)
+            if not tex:
+                # Если не удалось загрузить, используем первую текстуру
+                self.texture_path = self.TARGET_TEXTURES[0]
+        except:
+            # В случае ошибки используем первую текстуру
+            self.texture_path = self.TARGET_TEXTURES[0]
+        
+        # Load and apply texture
+        try:
+            tex = self.game.loader.loadTexture(self.texture_path)
+            if tex:
+                self.visual.setTexture(tex)
+                # Настраиваем правильную прозрачность
+                self.visual.setTransparency(1)  # 1 = M_alpha
+                self.visual.setBin("transparent", 0)
+                self.visual.setDepthWrite(False)
+        except:
+            print(f"Error loading texture: {self.texture_path}")
         
         # Показываем все части и включаем коллизии
         self.visual.show()
