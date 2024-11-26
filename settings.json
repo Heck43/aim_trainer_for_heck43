@@ -37,6 +37,6 @@
     "recoil_enabled": 1,
     "screen_shake_intensity": 1.0,
     "screen_shake_enabled": 1,
-    "target_count": 5,
+    "target_count": 10,
     "spread_enabled": 1
 }

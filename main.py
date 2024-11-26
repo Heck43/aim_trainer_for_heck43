@@ -1,6 +1,6 @@
 from direct.showbase.ShowBase import ShowBase
 from panda3d.core import Point3, Vec3, Vec4, Vec2, Point2, WindowProperties, MouseWatcher, NodePath
-from panda3d.core import CollisionTraverser, CollisionNode, CollisionHandlerQueue
+from panda3d.core import CollisionTraverser, CollisionNode, CollisionHandlerQueue, CollisionHandlerPusher
 from panda3d.core import CollisionRay, CollisionSphere, CollisionBox, BitMask32
 from panda3d.core import TextNode, TextureStage, Texture, TransparencyAttrib
 from panda3d.core import AmbientLight, DirectionalLight, LineSegs, ClockObject
@@ -28,6 +28,40 @@ class Game(ShowBase):
 
         # Инициализация FPS
         self.fps = 0
+        
+        # Инициализация коллизий
+        self.cTrav = CollisionTraverser('traverser')
+        self.cQueue = CollisionHandlerQueue()
+        
+        # Load the map
+        self.map_model = self.loader.loadModel("xz.egg")
+        self.map_model.reparentTo(self.render)
+        self.map_model.setPos(0, 0, 0)
+        self.map_model.setScale(1)
+        
+        # Setup map collisions
+        map_collision = CollisionNode('map_collision')
+        map_collision_np = NodePath(map_collision)
+        geom_node = self.map_model.find("**/+GeomNode")
+        if not geom_node.isEmpty():
+            geom_node.copyTo(map_collision_np)
+            map_collision_np.reparentTo(self.map_model)
+        
+        # Player collision setup
+        self.player_collision = CollisionNode('player')
+        player_sphere = CollisionSphere(0, 0, 0, 1.0)  # Radius of 1 unit
+        self.player_collision.addSolid(player_sphere)
+        self.player_collision_np = self.camera.attachNewNode(self.player_collision)
+        
+        # Set up collision handler
+        self.collision_handler = CollisionHandlerPusher()
+        self.collision_handler.addCollider(self.player_collision_np, self.camera)
+        
+        # Add collisions to traverser
+        self.cTrav.addCollider(self.player_collision_np, self.collision_handler)
+        
+        # Отключаем стандартное управление мышью
+        self.disableMouse()
         
         # Настройки по умолчанию
         self.DEFAULT_SETTINGS = {
@@ -107,13 +141,6 @@ class Game(ShowBase):
             shadow=(0, 0, 0, 1)
         )
         self.timer_text.hide()
-        
-        # Отключаем стандартное управление мышью
-        self.disableMouse()
-
-        # Инициализация коллизий
-        self.cTrav = CollisionTraverser()
-        self.cQueue = CollisionHandlerQueue()
         
         # Настройки окна
         properties = WindowProperties()
@@ -235,12 +262,21 @@ class Game(ShowBase):
         self.camera_pitch = 0
         self.camera_heading = 0
         
-        # Создаем пол
-        self.ground = self.loader.loadModel("models/box")
-        self.ground.setScale(100, 100, 1)
-        self.ground.setPos(0, 0, -1)
-        self.ground.setColor(0.2, 0.2, 0.2)
-        self.ground.reparentTo(self.render)
+        # Загружаем дополнительную модель
+        self.extra_model = self.loader.loadModel("model_textures/untitled.bam")
+        self.extra_model.reparentTo(self.render)
+        self.extra_model.setPos(8, 0, 0)  # Перемещаем дальше вправо от игрока
+        self.extra_model.setScale(2.0)  # Делаем модель ещё больше
+        
+        # Базовые настройки отображения
+        self.extra_model.clearShader()
+        self.extra_model.setColor(1, 1, 1, 1)
+        self.extra_model.setTwoSided(True)
+        
+        # Настраиваем материалы и освещение
+        #self.extra_model.setShaderAuto()  # Включаем автоматические шейдеры
+        
+        #self.create_map()
 
         # Создаем цель
         self.targets = []
@@ -328,10 +364,6 @@ class Game(ShowBase):
         
         # Добавляем задачу обновления гильз
         self.taskMgr.add(self.update_shells, "update_shells")
-        
-        # Set up collision traverser and handler
-        self.cTrav = CollisionTraverser('Main traverser')
-        self.cQueue = CollisionHandlerQueue()
         
         # Create the collision ray
         self.ray = CollisionRay()
@@ -1490,7 +1522,7 @@ class Game(ShowBase):
             )
         
         # Применяем скорость движения с учетом замедления времени
-        speed = (self.sprint_speed if self.is_sprinting else self.move_speed) * self.current_time_scale
+        speed = (self.sprint_speed if self.keyMap["shift"] else self.move_speed) * self.current_time_scale
         if self.is_jumping:
             # Применяем множитель скорости от комбо прыжков
             speed *= self.jump_combo_multiplier
@@ -1983,6 +2015,21 @@ class Game(ShowBase):
             self.menu = MainMenu(self)
         self.menu.show()
 
+    def create_map(self):
+        """Создание карты в стиле aim_botz"""
+        # Добавляем освещение
+        ambientLight = AmbientLight("ambient light")
+        ambientLight.setColor(Vec4(0.8, 0.8, 0.8, 1))  # Увеличиваем яркость общего освещения
+        self.ambientLightNP = self.render.attachNewNode(ambientLight)
+        self.render.setLight(self.ambientLightNP)
+
+        # Направленное освещение (имитация солнца)
+        directionalLight = DirectionalLight("directional light")
+        directionalLight.setColor(Vec4(1, 1, 1, 1))  # Делаем направленный свет ярче
+        directionalLight.setDirection(Vec3(-5, -5, -5))
+        self.directionalLightNP = self.render.attachNewNode(directionalLight)
+        self.render.setLight(self.directionalLightNP)
+        
 if __name__ == "__main__":
     game = Game()
     game.run()

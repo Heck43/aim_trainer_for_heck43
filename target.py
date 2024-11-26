@@ -40,28 +40,21 @@ class Target:
         show_images = self.game.settings.get('show_target_images', True)
         
         if show_images:
-            # Показываем картинку
-            if hasattr(self, 'visual'):
-                self.visual.show()
-                self.visual.setTransparency(1)
-                self.visual.setColor(1, 1, 1, 1)  # Полностью непрозрачная картинка
-            
-            # Скрываем части манекена
-            for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
-                np.setColor(1, 1, 1, 0)  # Полностью прозрачный
+            # Показываем картинку, скрываем модель
+            if hasattr(self, 'image_visual'):
+                self.image_visual.show()
+            if hasattr(self, 'model_visual'):
+                self.model_visual.hide()
         else:
-            # Скрываем картинку
-            if hasattr(self, 'visual'):
-                self.visual.hide()
-            
-            # Показываем части манекена красным цветом
-            for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
-                np.show()
-                np.setColor(0.8, 0.2, 0.2, 1)  # Красный цвет, полностью непрозрачный
-                # Настраиваем прозрачность для правильного отображения
-                np.setTransparency(1)
-                np.setBin("transparent", 0)
-                np.setDepthWrite(True)  # Включаем запись в буфер глубины
+            # Показываем модель, скрываем картинку
+            if hasattr(self, 'model_visual'):
+                self.model_visual.show()
+            if hasattr(self, 'image_visual'):
+                self.image_visual.hide()
+        
+        # Всегда скрываем коллизии
+        for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
+            np.hide()
 
     def create_model(self):
         # Create root node
@@ -69,19 +62,28 @@ class Target:
         self.model.setPos(self.position)
         self.model.reparentTo(self.game.render)
         
-        # Create visual representation (card with texture)
+        # Load the zzz.egg model
+        self.model_visual = self.game.loader.loadModel("zzz.egg")
+        self.model_visual.reparentTo(self.model)
+        self.model_visual.setScale(0.15)
+        
+        # Настраиваем материалы и освещение для модели
+        self.model_visual.setShaderAuto()  # Включаем автоматические шейдеры
+        self.model_visual.setTwoSided(True)  # Рендерим обе стороны полигонов
+        
+        # Create image visual (card with texture)
         cm = CardMaker('card')
         cm.setFrame(-0.8, 0.8, 0, 3.0)  # 1.6x3.0 meters
-        self.visual = self.model.attachNewNode(cm.generate())
+        self.image_visual = self.model.attachNewNode(cm.generate())
         
         # Load and apply texture
         try:
             tex = self.game.loader.loadTexture(self.texture_path)
             if tex:
-                self.visual.setTexture(tex)
-                self.visual.setTransparency(1)  # 1 = M_alpha
-                self.visual.setBin("transparent", 0)
-                self.visual.setDepthWrite(False)
+                self.image_visual.setTexture(tex)
+                self.image_visual.setTransparency(1)  # 1 = M_alpha
+                self.image_visual.setBin("transparent", 0)
+                self.image_visual.setDepthWrite(False)
         except:
             print(f"Error loading texture: {self.texture_path}")
         
@@ -119,9 +121,6 @@ class Target:
         legs_node.addSolid(legs_box)
         legs_node.setIntoCollideMask(BitMask32.bit(1))
         self.legs_np = self.model.attachNewNode(legs_node)
-        
-        # Настраиваем начальную видимость
-        self.update_visibility()
         
         # Поворачиваем манекен лицом к игроку
         self.model.lookAt(0, 0, 0)
@@ -162,16 +161,16 @@ class Target:
         try:
             tex = self.game.loader.loadTexture(self.texture_path)
             if tex:
-                self.visual.setTexture(tex)
+                self.image_visual.setTexture(tex)
                 # Настраиваем правильную прозрачность
-                self.visual.setTransparency(1)  # 1 = M_alpha
-                self.visual.setBin("transparent", 0)
-                self.visual.setDepthWrite(False)
+                self.image_visual.setTransparency(1)  # 1 = M_alpha
+                self.image_visual.setBin("transparent", 0)
+                self.image_visual.setDepthWrite(False)
         except:
             print(f"Error loading texture: {self.texture_path}")
         
         # Показываем все части и включаем коллизии
-        self.visual.show()
+        self.image_visual.show()
         for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
             np.show()
         self.enable_collisions()
@@ -189,7 +188,7 @@ class Target:
         else:
             # Change color based on remaining health
             health_fraction = self.current_hp / self.max_hp
-            self.visual.setColorScale(1, health_fraction, health_fraction, 1)
+            self.model_visual.setColorScale(1, health_fraction, health_fraction, 1)
 
     def disable_collisions(self):
         for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:

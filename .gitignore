@@ -17,11 +17,8 @@ sdist/
 var/
 *.egg-info/
 .installed.cfg
-*.egg
 *.spec
 *.prc
-*.ico
-*.jpg
 
 # Virtual Environment
 venv/
@@ -62,4 +59,3 @@ var/
 wheels/
 *.egg-info/
 .installed.cfg
-*.egg
