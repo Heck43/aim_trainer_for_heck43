@@ -1,0 +1,27 @@
+{
+    "sensitivity": 20.0,
+    "fov": 92,
+    "resolution": "1280x720",
+    "show_score": true,
+    "show_timer": true,
+    "volume": 100,
+    "show_target_images": 1,
+    "damage_numbers": true,
+    "killfeed": true,
+    "show_fps": true,
+    "recoil_enabled": true,
+    "weapon_position": {
+        "x": 0.25,
+        "y": 0.6000001430511475,
+        "z": -0.30000001192092896
+    },
+    "bhop_enabled": 1,
+    "audio": {
+        "music_enabled": 1,
+        "music_volume": 0.3486842215061188,
+        "current_track": "5sx0mhiemywj2gmg6z5w.mp3"
+    },
+    "target_count": 10,
+    "bullet_traces": true,
+    "spread_enabled": true
+}
