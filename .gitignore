@@ -19,6 +19,10 @@ var/
 .installed.cfg
 *.spec
 *.prc
+*.mtl
+*.obj
+*.gltf
+*.bin
 
 # Virtual Environment
 venv/
