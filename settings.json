@@ -23,7 +23,7 @@
         "rotation_strength": 0.5
     },
     "audio": {
-        "music_enabled": 1,
+        "music_enabled": 0,
         "music_volume": 0.20522205531597137,
         "current_track": "default_track1.mp3"
     },
