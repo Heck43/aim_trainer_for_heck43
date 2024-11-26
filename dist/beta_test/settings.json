@@ -5,7 +5,7 @@
     "show_score": true,
     "show_timer": true,
     "volume": 100,
-    "show_target_images": 1,
+    "show_target_images": 0,
     "damage_numbers": true,
     "killfeed": true,
     "show_fps": true,
@@ -17,7 +17,7 @@
     },
     "bhop_enabled": 1,
     "audio": {
-        "music_enabled": 1,
+        "music_enabled": 0,
         "music_volume": 0.3486842215061188,
         "current_track": "5sx0mhiemywj2gmg6z5w.mp3"
     },
