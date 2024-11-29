@@ -1,6 +1,6 @@
 {
     "sensitivity": 20.0,
-    "fov": 92,
+    "fov": 100,
     "resolution": "1280x720",
     "show_score": true,
     "show_timer": true,
@@ -18,8 +18,8 @@
     "bhop_enabled": 1,
     "audio": {
         "music_enabled": 0,
-        "music_volume": 0.3486842215061188,
-        "current_track": "5sx0mhiemywj2gmg6z5w.mp3"
+        "music_volume": 0.13815782964229584,
+        "current_track": "default_track1.mp3"
     },
     "target_count": 10,
     "bullet_traces": true,
