@@ -65,9 +65,10 @@ class Game(ShowBase):
         
         # Настройки по умолчанию
         self.DEFAULT_SETTINGS = {
-            'sensitivity': 25.0,
+            'sensitivity': 50.0,
             'fov': 70,
             'resolution': '1280x720',
+            'fullscreen': False,  # Добавляем настройку полноэкранного режима
             'show_score': True,
             'show_timer': True,
             'volume': 100,
@@ -106,6 +107,11 @@ class Game(ShowBase):
         width, height = map(int, resolution.split('x'))
         props = WindowProperties()
         props.setSize(width, height)
+        
+        # Применяем полноэкранный режим, если он включен в настройках
+        if self.settings.get('fullscreen', False):
+            props.setFullscreen(True)
+            
         self.win.requestProperties(props)
 
         # Start with splash screen, then initialize menu

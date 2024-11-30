@@ -12,21 +12,63 @@ class MainMenu:
         self.settings_visible = False
         self.menu_buttons = []  # Список для хранения кнопок меню
         
-        # Список доступных разрешений
-        self.resolutions = [
-            "800x600",    # 4:3
-            "1024x768",   # 4:3
-            "1280x720",   # 16:9 (HD)
-            "1366x768",   # 16:9
-            "1600x900",   # 16:9
-            "1920x1080",  # 16:9 (Full HD)
-        ]
+        # Получаем поддерживаемые разрешения от системы
+        display_info = self.game.pipe.getDisplayInformation()
         
-        # Получаем текущее разрешение из настроек или используем значение по умолчанию
+        # Стандартные разрешения и их широкоэкранные варианты
+        standard_resolutions = {
+            # 4:3 и их широкоэкранные варианты
+            "640x480",    # VGA
+            "800x600",    # SVGA
+            "960x600",    # Широкий SVGA
+            "1024x768",   # XGA
+            "1280x768",   # Широкий XGA
+            
+            # Стандартные широкоэкранные
+            "1280x720",   # HD
+            "1360x768",   # HD
+            "1366x768",   # HD
+            "1600x900",   # HD+
+            "1920x1080",  # Full HD
+            
+            # 16:10
+            "1280x800",
+            "1440x900",
+            "1680x1050",
+            
+            # 5:4
+            "1280x1024"
+        }
+        
+        # Получаем поддерживаемые разрешения от системы
+        supported_modes = set()
+        for i in range(display_info.getTotalDisplayModes()):
+            mode = display_info.getDisplayMode(i)
+            supported_modes.add(f"{mode.width}x{mode.height}")
+        
+        # Объединяем стандартные разрешения с поддерживаемыми системой
+        self.resolutions = sorted(list(standard_resolutions.union(supported_modes)),
+                                key=lambda x: (int(x.split('x')[1]), int(x.split('x')[0])))
+        
+        # Если текущее разрешение не поддерживается, используем ближайшее поддерживаемое
         self.current_resolution = self.game.settings.get('resolution', '1280x720')
-        # Если текущее разрешение не в списке, используем значение по умолчанию
         if self.current_resolution not in self.resolutions:
-            self.current_resolution = '1280x720'
+            # Находим ближайшее поддерживаемое разрешение
+            current_width, current_height = map(int, self.current_resolution.split('x'))
+            min_diff = float('inf')
+            best_res = '1280x720'  # значение по умолчанию
+            
+            for res in self.resolutions:
+                w, h = map(int, res.split('x'))
+                diff = abs(w - current_width) + abs(h - current_height)
+                if diff < min_diff:
+                    min_diff = diff
+                    best_res = res
+            
+            self.current_resolution = best_res
+            self.game.settings['resolution'] = best_res
+            self.game.settings['windowed_resolution'] = best_res
+            self.game.save_settings()
             
         # Загружаем текущую чувствительность мыши
         self.current_sensitivity = self.game.settings.get('sensitivity', self.game.DEFAULT_SETTINGS['sensitivity'])
@@ -211,16 +253,22 @@ class MainMenu:
         self.resolution_menu = DirectOptionMenu(
             text="Resolution",
             scale=0.05,
-            pos=(0.0, 0, 0.3),  # Adjusted position
+            pos=(0.0, 0, 0.3),
             items=self.resolutions,
-            initialitem=self.resolutions.index(self.current_resolution) if self.current_resolution in self.resolutions else 2,
+            initialitem=self.resolutions.index(self.current_resolution) if self.current_resolution in self.resolutions else 3,
             parent=graphics_tab,
             frameColor=(0.15, 0.15, 0.15, 0.9),
             relief=DGG.RIDGE,
             borderWidth=(0.02, 0.02),
             text_fg=(1, 1, 1, 1),
-            highlightColor=(0.2, 0.2, 0.2, 1)
+            highlightColor=(0.2, 0.2, 0.2, 1),
+            item_frameColor=(0.15, 0.15, 0.15, 0.95),
+            popupMenu_frameColor=(0.15, 0.15, 0.15, 0.95),
+            command=self.update_resolution
         )
+        
+        # Настраиваем меню разрешений
+        self.setup_resolution_menu()
 
         # FOV slider
         fov_label = DirectLabel(
@@ -239,6 +287,27 @@ class MainMenu:
             command=self.update_fov,
             **self.slider_style
         )
+
+        # Fullscreen checkbox
+        fullscreen_label = DirectLabel(
+            text="Fullscreen",
+            pos=(-0.6, 0, -0.15),
+            parent=graphics_tab,
+            **self.settings_style
+        )
+
+        self.fullscreen_checkbox = DirectCheckButton(
+            text="Enable",
+            scale=0.05,
+            pos=(0.2, 0, -0.15),
+            command=self.toggle_fullscreen,
+            parent=graphics_tab,
+            frameColor=(0.15, 0.15, 0.15, 0.9),
+            relief=DGG.RIDGE,
+            borderWidth=(0.02, 0.02),
+            text_fg=(1, 1, 1, 1)
+        )
+        self.fullscreen_checkbox['indicatorValue'] = self.game.settings.get('fullscreen', False)
 
         # Show Images checkbox
         show_images_label = DirectLabel(
@@ -270,9 +339,9 @@ class MainMenu:
         )
 
         self.sensitivity_slider = DirectSlider(
-            range=(0.1, 20.0),
+            range=(0.1, 150.0),
             value=self.current_sensitivity,
-            pageSize=0.2,
+            pageSize=1.0,
             pos=(0.25, 0, 0.3),  # Reduced by 0.05 from 0.3
             parent=controls_tab,
             command=self.update_sensitivity,
@@ -515,6 +584,27 @@ class MainMenu:
         self.back_button.bind(DGG.ENTER, self.button_hover_on, [self.back_button])
         self.back_button.bind(DGG.EXIT, self.button_hover_off, [self.back_button])
 
+    def setup_resolution_menu(self):
+        if hasattr(self.resolution_menu, 'popupMenu'):
+            # Настраиваем размер и позицию меню
+            menu = self.resolution_menu.popupMenu
+            menu['frameSize'] = (-0.5, 0.5, -0.6, 0.6)
+            
+            # Добавляем обработку колеса мыши для прокрутки
+            def scroll_menu(up):
+                if not menu.isHidden():
+                    current_index = self.resolutions.index(self.current_resolution)
+                    new_index = max(0, min(len(self.resolutions) - 1,
+                                         current_index + (-1 if up else 1)))
+                    if new_index != current_index:
+                        self.current_resolution = self.resolutions[new_index]
+                        self.resolution_menu.set(new_index)
+                        self.update_resolution(self.current_resolution)
+            
+            # Привязываем обработчики событий колеса мыши
+            menu.bind('wheel_up', lambda x: scroll_menu(True))
+            menu.bind('wheel_down', lambda x: scroll_menu(False))
+
     def toggle_settings(self):
         """Переключает видимость меню настроек"""
         if not self.settings_visible:
@@ -543,16 +633,32 @@ class MainMenu:
         self.game.save_settings()  # Сохраняем настройки сразу после изменения
 
     def update_resolution(self, resolution):
-        """Обновляет разрешение экрана"""
-        if resolution in self.resolutions:
-            width, height = map(int, resolution.split('x'))
-            # Сохраняем разрешение в настройках
-            self.game.settings['resolution'] = resolution
-            self.game.save_settings()
-            # Применяем новое разрешение
-            wp = WindowProperties()
-            wp.setSize(width, height)
-            base.win.requestProperties(wp)
+        # Сохраняем текущее состояние полноэкранного режима
+        was_fullscreen = self.game.settings.get('fullscreen', False)
+        
+        # Сначала выходим из полноэкранного режима
+        if was_fullscreen:
+            props = WindowProperties()
+            props.setFullscreen(False)
+            self.game.win.requestProperties(props)
+        
+        # Сохраняем новое разрешение
+        self.game.settings['resolution'] = resolution
+        self.game.settings['windowed_resolution'] = resolution
+        width, height = map(int, resolution.split('x'))
+        
+        # Применяем новое разрешение
+        props = WindowProperties()
+        props.setSize(width, height)
+        self.game.win.requestProperties(props)
+        
+        # Если был полноэкранный режим, возвращаем его
+        if was_fullscreen:
+            props = WindowProperties()
+            props.setFullscreen(True)
+            self.game.win.requestProperties(props)
+        
+        self.game.save_settings()
 
     def toggle_score(self, status):
         self.game.show_score = status
@@ -716,6 +822,23 @@ class MainMenu:
     def set_target_count(self, count):
         """Установка количества манекенов"""
         self.game.settings['target_count'] = int(count)
+        self.game.save_settings()
+
+    def toggle_fullscreen(self, status):
+        self.game.settings['fullscreen'] = status
+        props = WindowProperties()
+        
+        if status:
+            # Сохраняем текущее разрешение перед включением полноэкранного режима
+            self.game.settings['windowed_resolution'] = self.game.settings['resolution']
+            props.setFullscreen(True)
+        else:
+            # Возвращаемся к оконному режиму с предыдущим разрешением
+            props.setFullscreen(False)
+            width, height = map(int, self.game.settings.get('windowed_resolution', '1280x720').split('x'))
+            props.setSize(width, height)
+        
+        self.game.win.requestProperties(props)
         self.game.save_settings()
 
 class DirectTab(DirectFrame):
