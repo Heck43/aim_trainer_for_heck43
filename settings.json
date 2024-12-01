@@ -25,7 +25,7 @@
     "audio": {
         "music_enabled": 0,
         "music_volume": 0.032571882009506226,
-        "current_track": "Gunslinger.mp3"
+        "current_track": "No Music"
     },
     "recoil": {
         "strength": 1.0,
@@ -41,5 +41,5 @@
     "spread_enabled": 1,
     "fullscreen": 1,
     "windowed_resolution": "1024x768",
-    "nsfw_category": "furry"
+    "nsfw_category": "furry_2"
 }
