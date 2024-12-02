@@ -240,6 +240,22 @@ class Game(ShowBase):
                     "recovery_time": 0.5   # Долгое восстановление точности
                 },
                 "sound": "sounds/sniper_shot.wav"  # Звук выстрела для снайперской винтовки
+            },
+            "dual_revolvers": {
+                "cooldown": 0.1,  # Быстрее стреляет
+                "damage": 20,     # Меньше урон
+                "recoil": {
+                    "pitch": (0.3, 0.6),  # Уменьшили отдачу по вертикали
+                    "yaw": (-0.2, 0.2)      # Уменьшили отдачу по горизонтали
+                },
+                "spread": {
+                    "base": 0.015,       # Уменьшили с 0.1 до 0.015
+                    "max": 0.12,         # Уменьшили с 0.35 до 0.12
+                    "moving_mult": 1.8,   # Уменьшили с 2.5 до 1.8
+                    "jumping_mult": 2.5,  # Уменьшили с 3.5 до 2.5
+                    "recovery_time": 0.08 # Время восстановления точности
+                },
+                "sound": "sounds/rifle_shot.wav"  # Звук выстрела для винтовки
             }
         }
         
@@ -336,6 +352,7 @@ class Game(ShowBase):
         self.accept("1", self.switch_weapon, ["rifle"])    # Клавиша 1 для винтовки
         self.accept("2", self.switch_weapon, ["pistol"])   # Клавиша 2 для пистолета
         self.accept("3", self.switch_weapon, ["sniper"])   # Клавиша 3 для снайперской винтовки
+        self.accept("4", self.switch_weapon, ["dual_revolvers"])   # Клавиша 4 для двойных револьверов
         self.accept("wheel_up", self.cycle_weapon, [1])    # Колесо мыши вверх для следующего оружия
         self.accept("wheel_down", self.cycle_weapon, [-1]) # Колесо мыши вниз для предыдущего оружия
         
@@ -440,7 +457,8 @@ class Game(ShowBase):
         self.ads_fov = {
             "pistol": 65,
             "rifle": 45,
-            "sniper": 30
+            "sniper": 30,
+            "dual_revolvers": 60
         }
 
         # Анимация оружия
@@ -448,6 +466,9 @@ class Game(ShowBase):
         self.is_drawing_weapon = False
 
         self.is_splash_screen_active = True  # Add this flag
+
+        # Добавляем переменную для отслеживания активного револьвера
+        self.active_revolver = "left"  # Начинаем с левого револьвера
 
     def create_text(self, x, y):
         return OnscreenText(
@@ -649,6 +670,45 @@ class Game(ShowBase):
         
         self.weapon_models["sniper"] = sniper
         
+        # Создаем двойные револьверы
+        dual_revolvers = NodePath("dual_revolvers")
+        dual_revolvers.reparentTo(self.weapon)
+        
+        # Создаем левый револьвер
+        left_revolver = NodePath("left_revolver")
+        left_revolver.reparentTo(dual_revolvers)
+        left_revolver.setPos(-2.0, 0.6, -0.2)  # Сдвинуто с -1.2 на -2.0
+        
+        # Создаем правый револьвер
+        right_revolver = NodePath("right_revolver")
+        right_revolver.reparentTo(dual_revolvers)
+        right_revolver.setPos(0.4, 0.6, -0.2)  # Сдвинуто с 1.2 на 0.4
+        
+        # Создаем модель револьвера (для обоих)
+        for revolver in [left_revolver, right_revolver]:
+            # Дуло револьвера
+            barrel = self.loader.loadModel("models/box")
+            barrel.setScale(0.06, 0.3, 0.06)
+            barrel.setPos(0, 0.8, 0)
+            barrel.setColor(0.2, 0.2, 0.2)
+            barrel.reparentTo(revolver)
+            
+            # Барабан револьвера
+            cylinder = self.loader.loadModel("models/box")
+            cylinder.setScale(0.1, 0.15, 0.1)
+            cylinder.setPos(0, 0.6, 0)
+            cylinder.setColor(0.3, 0.3, 0.3)
+            cylinder.reparentTo(revolver)
+            
+            # Рукоять револьвера
+            grip = self.loader.loadModel("models/box")
+            grip.setScale(0.08, 0.1, 0.2)
+            grip.setPos(0, 0.5, -0.15)
+            grip.setColor(0.4, 0.2, 0.1)  # Коричневый цвет для рукояти
+            grip.reparentTo(revolver)
+        
+        self.weapon_models["dual_revolvers"] = dual_revolvers
+        
         # Скрываем все оружия кроме текущего
         for weapon_name, model in self.weapon_models.items():
             if weapon_name == self.current_weapon:
@@ -685,6 +745,10 @@ class Game(ShowBase):
         self.save_settings()
         
     def animate_weapon_recoil(self):
+        # Не применяем эту анимацию для двойных револьверов
+        if self.current_weapon == "dual_revolvers":
+            return
+            
         # Сохраняем текущую позицию
         if not self.original_weapon_pos:
             self.original_weapon_pos = self.weapon.getPos()
@@ -817,9 +881,81 @@ class Game(ShowBase):
             
         self.can_shoot = False
         
-        # Play shooting sound
-        self.shot_sound = self.loader.loadSfx(self.weapons[self.current_weapon]["sound"])
-        self.shot_sound.play()
+        # Для двойных револьверов делаем поочередную стрельбу
+        if self.current_weapon == "dual_revolvers":
+            # Получаем текущий активный револьвер
+            active_revolver = self.weapon_models["dual_revolvers"].find(f"{self.active_revolver}_revolver")
+            
+            # Воспроизводим звук выстрела
+            self.shot_sound = self.loader.loadSfx(self.weapons[self.current_weapon]["sound"])
+            self.shot_sound.play()
+            
+            # Создаем анимацию отдачи только для активного револьвера
+            if self.active_revolver == "left":
+                recoil_pos = Point3(
+                    active_revolver.getX() + 0.15,  # Отдача немного вправо
+                    active_revolver.getY() - 0.08,  # Назад
+                    active_revolver.getZ() + 0.05   # Вверх
+                )
+                recoil_hpr = Vec3(
+                    active_revolver.getH() + 12,    # Поворот вправо
+                    active_revolver.getP() + 15,    # Вверх
+                    active_revolver.getR() + random.uniform(-8, 8)
+                )
+            else:  # right revolver
+                recoil_pos = Point3(
+                    active_revolver.getX() - 0.15,  # Отдача немного влево
+                    active_revolver.getY() - 0.08,  # Назад
+                    active_revolver.getZ() + 0.05   # Вверх
+                )
+                recoil_hpr = Vec3(
+                    active_revolver.getH() - 12,    # Поворот влево
+                    active_revolver.getP() + 15,    # Вверх
+                    active_revolver.getR() + random.uniform(-8, 8)
+                )
+            
+            # Создаем последовательность анимации только для активного револьвера
+            recoil_sequence = Sequence(
+                Parallel(
+                    active_revolver.posInterval(
+                        0.05,
+                        recoil_pos,
+                        blendType='easeOut'
+                    ),
+                    active_revolver.hprInterval(
+                        0.05,
+                        recoil_hpr,
+                        blendType='easeOut'
+                    )
+                ),
+                Parallel(
+                    active_revolver.posInterval(
+                        0.1,
+                        Point3(-2.0 if self.active_revolver == "left" else 0.4, 0.6, -0.2),
+                        blendType='easeIn'
+                    ),
+                    active_revolver.hprInterval(
+                        0.1,
+                        Vec3(0, 0, 0),
+                        blendType='easeIn'
+                    )
+                )
+            )
+            recoil_sequence.start()
+            
+            # Переключаем активный револьвер
+            self.active_revolver = "right" if self.active_revolver == "left" else "left"
+            
+        else:
+            # Оригинальная логика для других оружий
+            self.shot_sound = self.loader.loadSfx(self.weapons[self.current_weapon]["sound"])
+            self.shot_sound.play()
+            
+            # Создаем анимацию выброса гильзы
+            self.create_shell_casing()
+            
+            # Анимация отдачи для обычного оружия
+            self.animate_weapon_recoil()
         
         # Устанавливаем таймер на возможность следующего выстрела
         self.taskMgr.doMethodLater(
@@ -827,9 +963,6 @@ class Game(ShowBase):
             self.reset_shoot,
             'reset_shoot'
         )
-        
-        # Создаем анимацию выброса гильзы
-        self.create_shell_casing()
         
         # Получаем параметры текущего оружия
         weapon_params = self.weapons[self.current_weapon]
@@ -919,7 +1052,25 @@ class Game(ShowBase):
         self.cTrav.traverse(self.render)
         
         # Получаем начальную позицию пули (позиция оружия)
-        weapon_pos = self.weapon.getPos(self.render)
+        if self.current_weapon == "dual_revolvers":
+            # Для двойных револьверов используем позицию активного револьвера
+            active_revolver = self.weapon_models["dual_revolvers"].find(f"{self.active_revolver}_revolver")
+            if self.active_revolver == "left":
+                weapon_pos = self.camera.getPos() + self.camera.getMat().xformVec(Point3(-2.0, 0.6, -0.2))
+            else:
+                weapon_pos = self.camera.getPos() + self.camera.getMat().xformVec(Point3(0.4, 0.6, -0.2))
+        else:
+            # Для других оружий
+            if self.current_weapon == "rifle":
+                local_pos = Point3(0.2, 0.6, -0.2)
+            elif self.current_weapon == "pistol":
+                local_pos = Point3(0.15, 0.6, -0.2)
+            elif self.current_weapon == "sniper":
+                local_pos = Point3(0.25, 0.6, -0.2)
+            else:
+                local_pos = Point3(0, 0.6, -0.2)
+            # Преобразуем локальные координаты в мировые относительно камеры
+            weapon_pos = self.camera.getPos() + self.camera.getMat().xformVec(local_pos)
         
         # Получаем направление луча
         direction = self.camera.getQuat().getForward()
@@ -952,13 +1103,53 @@ class Game(ShowBase):
                 self.cQueue.sortEntries()
                 entry = self.cQueue.getEntry(0)
                 hit_pos = entry.getSurfacePoint(self.render)
-                self.create_bullet_trace(weapon_pos, hit_pos)
+                
+                # Создаем след пули из правильной позиции
+                if self.current_weapon == "dual_revolvers":
+                    # Для револьверов используем позицию активного револьвера
+                    if self.active_revolver == "left":
+                        local_pos = Point3(-2.0, 0.6, -0.2)
+                    else:
+                        local_pos = Point3(0.4, 0.6, -0.2)
+                else:
+                    # Для других оружий используем их специфические позиции
+                    if self.current_weapon == "rifle":
+                        local_pos = Point3(0.2, 0.6, -0.2)
+                    elif self.current_weapon == "pistol":
+                        local_pos = Point3(0.15, 0.6, -0.2)
+                    elif self.current_weapon == "sniper":
+                        local_pos = Point3(0.25, 0.6, -0.2)
+                    else:
+                        local_pos = Point3(0, 0.6, -0.2)
+                
+                # Преобразуем локальные координаты в мировые относительно камеры
+                start_pos = self.camera.getPos() + self.camera.getMat().xformVec(local_pos)
+                self.create_bullet_trace(start_pos, hit_pos)
                 
                 # Обработка попадания в цель
                 self.handle_collision(entry)
             else:
                 # Если не попали, используем конечную точку луча
-                self.create_bullet_trace(weapon_pos, end_pos)
+                if self.current_weapon == "dual_revolvers":
+                    # Для револьверов используем позицию активного револьвера
+                    if self.active_revolver == "left":
+                        local_pos = Point3(-2.0, 0.6, -0.2)
+                    else:
+                        local_pos = Point3(0.4, 0.6, -0.2)
+                else:
+                    # Для других оружий используем их специфические позиции
+                    if self.current_weapon == "rifle":
+                        local_pos = Point3(0.2, 0.6, -0.2)
+                    elif self.current_weapon == "pistol":
+                        local_pos = Point3(0.15, 0.6, -0.2)
+                    elif self.current_weapon == "sniper":
+                        local_pos = Point3(0.25, 0.6, -0.2)
+                    else:
+                        local_pos = Point3(0, 0.6, -0.2)
+                
+                # Преобразуем локальные координаты в мировые относительно камеры
+                start_pos = self.camera.getPos() + self.camera.getMat().xformVec(local_pos)
+                self.create_bullet_trace(start_pos, end_pos)
         
     def remove_specific_effect(self, effect_index, task):
         if 0 <= effect_index < len(self.shot_effects):
@@ -1629,8 +1820,14 @@ class Game(ShowBase):
         
         # Изменение чувствительности мыши при прицеливании
         base_sensitivity = self.settings["sensitivity"]
-        aim_sensitivity = base_sensitivity * self.ads_sensitivity_multiplier
-        self.mouse_sensitivity = base_sensitivity + (aim_sensitivity - base_sensitivity) * self.aim_transition
+        
+        # Применяем множитель чувствительности при прицеливании
+        if self.is_aiming:
+            sensitivity = base_sensitivity * self.ads_sensitivity_multiplier
+        else:
+            sensitivity = base_sensitivity
+        
+        self.mouse_sensitivity = sensitivity
         
         return task.cont
 
@@ -1676,33 +1873,120 @@ class Game(ShowBase):
         
         self.is_drawing_weapon = True
         
-        # Начальная позиция (оружие внизу и повернуто)
-        self.weapon_model.set_pos(0.25, 0.6, -1.0)
-        self.weapon_model.set_hpr(30, -30, 0)
-        
-        # Создаем последовательность анимации
-        pos_interval = LerpPosInterval(
-            self.weapon_model,
-            duration=0.4,
-            pos=Point3(0.25, 0.6, -0.3),
-            startPos=Point3(0.25, 0.6, -1.0),
-            blendType='easeOut'
-        )
-        
-        rot_interval = LerpHprInterval(
-            self.weapon_model,
-            duration=0.4,
-            hpr=Vec3(0, 0, 0),
-            startHpr=Vec3(30, -30, 0),
-            blendType='easeOut'
-        )
-        
-        # Комбинируем анимации позиции и поворота
-        self.weapon_animation = Parallel(
-            pos_interval,
-            rot_interval,
-            name="weapon_draw"
-        )
+        if self.current_weapon == "dual_revolvers":
+            # Получаем левый и правый револьверы
+            left_revolver = self.weapon_models["dual_revolvers"].find("left_revolver")
+            right_revolver = self.weapon_models["dual_revolvers"].find("right_revolver")
+            
+            # Начальные позиции (оружие за спиной)
+            left_revolver.setPos(0, -1.0, -0.5)  # Начинаем из-за спины
+            right_revolver.setPos(0, -1.0, -0.5)
+            left_revolver.setHpr(-180, 0, 180)   # Перевернутое положение
+            right_revolver.setHpr(-180, 0, 180)
+            
+            # Создаем последовательность анимации для левого револьвера
+            left_sequence = Sequence(
+                # Фаза 1: Выдвижение вперед и начало поворота
+                Parallel(
+                    left_revolver.posInterval(
+                        0.15,
+                        Point3(-1.0, 0.2, -0.3),
+                        startPos=Point3(0, -1.0, -0.5),
+                        blendType='easeOut'
+                    ),
+                    left_revolver.hprInterval(
+                        0.15,
+                        Point3(-90, -30, 90),
+                        startHpr=Point3(-180, 0, 180),
+                        blendType='easeOut'
+                    )
+                ),
+                # Фаза 2: Финальное позиционирование
+                Parallel(
+                    left_revolver.posInterval(
+                        0.25,
+                        Point3(-2.0, 0.6, -0.2),
+                        blendType='easeOut'
+                    ),
+                    left_revolver.hprInterval(
+                        0.25,
+                        Point3(0, 0, 0),
+                        blendType='easeOut'
+                    )
+                )
+            )
+            
+            # Создаем последовательность анимации для правого револьвера
+            right_sequence = Sequence(
+                # Небольшая задержка перед началом анимации правого револьвера
+                Wait(0.1),
+                # Фаза 1: Выдвижение вперед и начало поворота
+                Parallel(
+                    right_revolver.posInterval(
+                        0.15,
+                        Point3(0.0, 0.2, -0.3),
+                        startPos=Point3(0, -1.0, -0.5),
+                        blendType='easeOut'
+                    ),
+                    right_revolver.hprInterval(
+                        0.15,
+                        Point3(-90, -30, 90),
+                        startHpr=Point3(-180, 0, 180),
+                        blendType='easeOut'
+                    )
+                ),
+                # Фаза 2: Финальное позиционирование
+                Parallel(
+                    right_revolver.posInterval(
+                        0.25,
+                        Point3(0.4, 0.6, -0.2),
+                        blendType='easeOut'
+                    ),
+                    right_revolver.hprInterval(
+                        0.25,
+                        Point3(0, 0, 0),
+                        blendType='easeOut'
+                    )
+                )
+            )
+            
+            # Создаем общую анимацию
+            self.weapon_animation = Parallel(
+                left_sequence,
+                right_sequence,
+                name="dual_revolvers_draw"
+            )
+            
+            # Запускаем анимацию
+            self.weapon_animation.start()
+        else:
+            # Оригинальная логика для других оружий
+            self.weapon_model.setPos(0.25, 0.6, -1.0)
+            self.weapon_model.setHpr(30, -30, 0)
+            
+            # Создаем последовательность анимации
+            pos_interval = LerpPosInterval(
+                self.weapon_model,
+                duration=0.4,
+                pos=Point3(0.25, 0.6, -0.3),
+                startPos=Point3(0.25, 0.6, -1.0),
+                blendType='easeOut'
+            )
+            
+            rot_interval = LerpHprInterval(
+                self.weapon_model,
+                duration=0.4,
+                hpr=Vec3(0, 0, 0),
+                startHpr=Vec3(30, -30, 0),
+                blendType='easeOut'
+            )
+            
+            # Комбинируем анимации позиции и поворота
+            self.weapon_animation = Parallel(
+                pos_interval,
+                rot_interval,
+                name="weapon_draw"
+            )
         
         # Добавляем функцию завершения
         def finish_animation():
@@ -1751,10 +2035,12 @@ class Game(ShowBase):
         x = md.getX()
         y = md.getY()
         
-        if base.win.movePointer(0, base.win.getXSize()//2, base.win.getYSize()//2):
+        if base.win.movePointer(0,
+            int(base.win.getProperties().getXSize() / 2),
+            int(base.win.getProperties().getYSize() / 2)):
             # Рассчитываем изменение положения
-            deltaX = x - base.win.getXSize()//2
-            deltaY = y - base.win.getYSize()//2
+            deltaX = x - base.win.getProperties().getXSize()//2
+            deltaY = y - base.win.getProperties().getYSize()//2
             
             # Применяем чувствительность
             sensitivity_factor = 25.0  # Увеличено с 10.0 до 25.0

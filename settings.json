@@ -1,11 +1,11 @@
 {
-    "sensitivity": 33.56196594238281,
+    "sensitivity": 32.219486236572266,
     "fov": 96,
-    "resolution": "1024x768",
+    "resolution": "1920x1080",
     "show_score": 1,
     "show_timer": 1,
     "volume": 100,
-    "show_target_images": 1,
+    "show_target_images": 0,
     "damage_numbers": 1,
     "killfeed": 1,
     "show_fps": 1,
@@ -40,6 +40,6 @@
     "target_count": 5,
     "spread_enabled": 1,
     "fullscreen": 1,
-    "windowed_resolution": "1024x768",
-    "nsfw_category": "furry_2"
+    "windowed_resolution": "1920x1080",
+    "nsfw_category": "furry"
 }

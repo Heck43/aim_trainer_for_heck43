@@ -4,7 +4,7 @@ import random
 import os
 
 class Target:
-    # Список путей к текстурам
+    # Базовые текстуры для обычного режима
     TARGET_TEXTURES = [
         'images/target1.png',
         'images/target2.jpg',
@@ -13,6 +13,25 @@ class Target:
         'images/target5.png'
     ]
 
+    @staticmethod
+    def get_images_from_category(category):
+        # Путь к папке категории
+        category_path = f'images/nsfw/{category}'
+        
+        # Проверяем существование папки
+        if not os.path.exists(category_path):
+            return []
+            
+        # Получаем список всех файлов в папке
+        valid_extensions = ['.png', '.jpg', '.jpeg']
+        images = []
+        
+        for file in os.listdir(category_path):
+            if any(file.lower().endswith(ext) for ext in valid_extensions):
+                images.append(os.path.join(category_path, file))
+                
+        return images if images else []
+
     def __init__(self, game, pos):
         self.game = game
         self.position = pos
@@ -20,16 +39,25 @@ class Target:
         self.current_hp = self.max_hp
         self.is_active = True
         
-        # Выбираем случайную текстуру
+        # Выбираем текстуру в зависимости от режима и категории
         try:
-            self.texture_path = random.choice(self.TARGET_TEXTURES)
+            show_images = self.game.settings.get('show_target_images', True)
+            if show_images:
+                category = self.game.settings.get('nsfw_category', 'furry')
+                category_images = self.get_images_from_category(category)
+                
+                if category_images:
+                    self.texture_path = random.choice(category_images)
+                else:
+                    self.texture_path = random.choice(self.TARGET_TEXTURES)
+            else:
+                self.texture_path = random.choice(self.TARGET_TEXTURES)
+
             # Пробуем загрузить текстуру
             tex = self.game.loader.loadTexture(self.texture_path)
             if not tex:
-                # Если не удалось загрузить, используем первую текстуру
                 self.texture_path = self.TARGET_TEXTURES[0]
         except:
-            # В случае ошибки используем первую текстуру
             self.texture_path = self.TARGET_TEXTURES[0]
         
         self.create_model()
@@ -148,14 +176,23 @@ class Target:
         
         # Выбираем новую случайную текстуру
         try:
-            self.texture_path = random.choice(self.TARGET_TEXTURES)
+            show_images = self.game.settings.get('show_target_images', True)
+            if show_images:
+                category = self.game.settings.get('nsfw_category', 'furry')
+                category_images = self.get_images_from_category(category)
+                
+                if category_images:
+                    self.texture_path = random.choice(category_images)
+                else:
+                    self.texture_path = random.choice(self.TARGET_TEXTURES)
+            else:
+                self.texture_path = random.choice(self.TARGET_TEXTURES)
+
             # Пробуем загрузить текстуру
             tex = self.game.loader.loadTexture(self.texture_path)
             if not tex:
-                # Если не удалось загрузить, используем первую текстуру
                 self.texture_path = self.TARGET_TEXTURES[0]
         except:
-            # В случае ошибки используем первую текстуру
             self.texture_path = self.TARGET_TEXTURES[0]
         
         # Load and apply texture

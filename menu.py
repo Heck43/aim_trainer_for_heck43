@@ -457,6 +457,43 @@ class MainMenu:
         )
         self.show_images_checkbox['indicatorValue'] = self.game.settings.get('show_target_images', True)
 
+        # NSFW Categories
+        self.nsfw_categories = ["furry", "anime", "futa", "femboy", "hentai", "fnia", "furry_2", "furry_3"]
+        
+        self.nsfw_category_label = DirectLabel(
+            text="NSFW Category",
+            pos=(-0.6, 0, -0.3),  # Изменил позицию Y с -0.1 на -0.3
+            parent=self.tab_frames['graphics'],
+            frameColor=(0, 0, 0, 0),
+            text_fg=(0.9, 0.9, 0.9, 1),
+            text_scale=0.045,
+            text_align=TextNode.ALeft
+        )
+
+        self.nsfw_category_menu = DirectOptionMenu(
+            text="Category",
+            scale=0.05,
+            pos=(0.1, 0, -0.3),  # Изменил позицию Y с -0.1 на -0.3
+            items=self.nsfw_categories,
+            initialitem=self.nsfw_categories.index(self.game.settings.get('nsfw_category', 'furry')) if self.game.settings.get('nsfw_category', 'furry') in self.nsfw_categories else 0,
+            parent=self.tab_frames['graphics'],
+            frameColor=(0.18, 0.2, 0.25, 0.9),
+            relief=DGG.FLAT,
+            borderWidth=(0, 0),
+            text_fg=(0.9, 0.9, 0.9, 1),
+            highlightColor=(0.4, 0.6, 1, 0.8),
+            item_frameColor=(0.16, 0.18, 0.21, 0.95),
+            popupMenu_frameColor=(0.16, 0.18, 0.21, 0.95),
+            command=self.update_nsfw_category,
+            item_relief=DGG.FLAT,
+            popupMenu_relief=DGG.FLAT
+        )
+        
+        # Hide category menu by default if NSFW mode is disabled
+        if not self.game.settings.get('show_target_images', True):
+            self.nsfw_category_menu.hide()
+            self.nsfw_category_label.hide()
+
         # Настройки управления
         sensitivity_label = DirectLabel(
             text="Mouse Sensitivity",
@@ -886,12 +923,17 @@ class MainMenu:
         self.game.apply_settings({'show_timer': status})
 
     def toggle_show_images(self, status):
+        """Toggles NSFW mode and shows/hides category selection"""
         self.game.settings['show_target_images'] = status
         self.game.save_settings()
-        # Обновляем видимость всех существующих манекенов
-        if hasattr(self.game, 'targets'):
-            for target in self.game.targets:
-                target.update_visibility()
+        
+        # Show/hide NSFW category menu based on NSFW mode status
+        if status:
+            self.nsfw_category_menu.show()
+            self.nsfw_category_label.show()
+        else:
+            self.nsfw_category_menu.hide()
+            self.nsfw_category_label.hide()
 
     def toggle_bhop(self, status):
         self.game.settings['bhop_enabled'] = status
@@ -1050,6 +1092,11 @@ class MainMenu:
             props.setSize(width, height)
         
         self.game.win.requestProperties(props)
+        self.game.save_settings()
+
+    def update_nsfw_category(self, category):
+        """Обновляет категорию NSFW"""
+        self.game.settings['nsfw_category'] = category
         self.game.save_settings()
 
 class DirectTab(DirectFrame):
