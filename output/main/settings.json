@@ -1,0 +1,28 @@
+{
+    "sensitivity": 38.58629608154297,
+    "fov": 82,
+    "resolution": "1280x720",
+    "fullscreen": true,
+    "show_score": true,
+    "show_timer": true,
+    "volume": 100,
+    "show_target_images": 1,
+    "damage_numbers": true,
+    "killfeed": true,
+    "show_fps": true,
+    "recoil_enabled": 0,
+    "weapon_position": {
+        "x": 0.25,
+        "y": 0.6000001430511475,
+        "z": -0.30000001192092896
+    },
+    "bhop_enabled": 0,
+    "audio": {
+        "music_enabled": true,
+        "music_volume": 0.5,
+        "current_track": "kiss_me_again.mp3"
+    },
+    "target_count": 5,
+    "bullet_traces": true,
+    "spread_enabled": 0
+}

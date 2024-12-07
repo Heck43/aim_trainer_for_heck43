@@ -23,6 +23,12 @@ var/
 *.obj
 *.gltf
 *.bin
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.exe
+output/
 
 # Virtual Environment
 venv/
@@ -63,3 +69,4 @@ var/
 wheels/
 *.egg-info/
 .installed.cfg
+output/
