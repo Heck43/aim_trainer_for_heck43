@@ -1,5 +1,5 @@
 # Aim Trainer nsfw/sfm | Тренажер прицеливания nsfw/sfm
-
+![](https://i.imgur.com/zilmwPd.png)
 [English](#english) | [Русский](#русский)
 
 ---
@@ -9,7 +9,7 @@
 
 A modern 3D aim trainer game built with Python and Panda3D engine. This application helps players improve their aiming skills and reaction time in first-person shooter games.
 
-![Game Screenshot](images/game_screenshot.png)
+![Game Screenshot](https://i.imgur.com/jNchiiz.png)
 
 ## Features
 
@@ -25,7 +25,7 @@ A modern 3D aim trainer game built with Python and Panda3D engine. This applicat
 - Jump mechanics with combo system
 - NSFW/SFM content support
 
-![Features Showcase](images/features.png)
+![Features Showcase](https://i.imgur.com/amXo8BJ.png)
 
 ## Technical Details
 
@@ -45,8 +45,6 @@ A modern 3D aim trainer game built with Python and Panda3D engine. This applicat
 
 ## Controls
 
-![Controls Diagram](images/controls.png)
-
 - Mouse movement to aim
 - Left click to shoot targets
 - Space to jump (with combo system)
@@ -58,7 +56,7 @@ A modern 3D aim trainer game built with Python and Panda3D engine. This applicat
 ## Installation
 
 ### Option 1: Using Pre-built Release
-1. Download the latest release from the [Releases](https://github.com/your-repo/releases) page
+1. Download the latest release from the [Releases](https://github.com/Heck43/aim_trainer_for_heck43/releases) page
 2. Extract the archive to your desired location
 3. Run `main.exe` to start the game
 
@@ -69,8 +67,6 @@ A modern 3D aim trainer game built with Python and Panda3D engine. This applicat
    pip install -r requirements.txt
    ```
 3. Run `main.py` to start the game
-
-![Installation Guide](images/installation.png)
 
 ## Development
 
@@ -86,8 +82,6 @@ This project is developed with focus on:
 - Smooth performance optimization
 - Modern visual effects
 
-![Development Architecture](images/architecture.png)
-
 Feel free to contribute to the project or report any issues!
 
 ---
@@ -97,7 +91,7 @@ Feel free to contribute to the project or report any issues!
 
 Современный 3D тренажер прицеливания, созданный на Python с использованием движка Panda3D. Это приложение помогает игрокам улучшить навыки прицеливания и время реакции в шутерах от первого лица.
 
-![Скриншот игры](images/game_screenshot.png)
+![Скриншот игры](https://i.imgur.com/jNchiiz.png)
 
 ## Особенности
 
@@ -113,7 +107,7 @@ Feel free to contribute to the project or report any issues!
 - Механика прыжков с системой комбо
 - Поддержка NSFW/SFM контента
 
-![Демонстрация функций](images/features.png)
+![Демонстрация функций](https://i.imgur.com/amXo8BJ.png)
 
 ## Технические детали
 
@@ -133,8 +127,6 @@ Feel free to contribute to the project or report any issues!
 
 ## Управление
 
-![Схема управления](images/controls.png)
-
 - Движение мыши для прицеливания
 - Левый клик для стрельбы по мишеням
 - Пробел для прыжка (с системой комбо)
@@ -146,7 +138,7 @@ Feel free to contribute to the project or report any issues!
 ## Установка
 
 ### Вариант 1: Использование готового релиза
-1. Скачайте последний релиз со страницы [Releases](https://github.com/your-repo/releases)
+1. Скачайте последний релиз со страницы [Releases](https://github.com/Heck43/aim_trainer_for_heck43/releases)
 2. Распакуйте архив в нужную папку
 3. Запустите `main.exe` для старта игры
 
@@ -157,8 +149,6 @@ Feel free to contribute to the project or report any issues!
    pip install -r requirements.txt
    ```
 3. Запустите `main.py` для старта игры
-
-![Руководство по установке](images/installation.png)
 
 ## Разработка
 
@@ -173,7 +163,5 @@ Feel free to contribute to the project or report any issues!
 - Настраиваемые игровые параметры
 - Оптимизацию производительности
 - Современные визуальные эффекты
-
-![Архитектура разработки](images/architecture.png)
 
 Не стесняйтесь вносить свой вклад в проект или сообщать о проблемах! 
