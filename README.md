@@ -57,6 +57,12 @@ A modern 3D aim trainer game built with Python and Panda3D engine. This applicat
 
 ## Installation
 
+### Option 1: Using Pre-built Release
+1. Download the latest release from the [Releases](https://github.com/your-repo/releases) page
+2. Extract the archive to your desired location
+3. Run `main.exe` to start the game
+
+### Option 2: Building from Source
 1. Clone this repository
 2. Install the required dependencies:
    ```
@@ -139,6 +145,12 @@ Feel free to contribute to the project or report any issues!
 
 ## Установка
 
+### Вариант 1: Использование готового релиза
+1. Скачайте последний релиз со страницы [Releases](https://github.com/your-repo/releases)
+2. Распакуйте архив в нужную папку
+3. Запустите `main.exe` для старта игры
+
+### Вариант 2: Сборка из исходного кода
 1. Клонируйте этот репозиторий
 2. Установите необходимые зависимости:
    ```
@@ -164,4 +176,4 @@ Feel free to contribute to the project or report any issues!
 
 ![Архитектура разработки](images/architecture.png)
 
-Не стесняйтесь вносить свой вклад в проект или сообщать о проблемах!
+Не стесняйтесь вносить свой вклад в проект или сообщать о проблемах! 
