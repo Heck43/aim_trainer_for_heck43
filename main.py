@@ -284,21 +284,7 @@ class Game(ShowBase):
         self.camera_pitch = 0
         self.camera_heading = 0
         
-        # Загружаем дополнительную модель
-        self.extra_model = self.loader.loadModel("model_textures/untitled.bam")
-        self.extra_model.reparentTo(self.render)
-        self.extra_model.setPos(8, 0, 0)  # Перемещаем дальше вправо от игрока
-        self.extra_model.setScale(2.0)  # Делаем модель ещё больше
-        
-        # Базовые настройки отображения
-        self.extra_model.clearShader()
-        self.extra_model.setColor(1, 1, 1, 1)
-        self.extra_model.setTwoSided(True)
-        
-        # Настраиваем материалы и освещение
-        #self.extra_model.setShaderAuto()  # Включаем автоматические шейдеры
-        
-        #self.create_map()
+
 
         # Создаем цель
         self.targets = []
@@ -2307,20 +2293,7 @@ class Game(ShowBase):
             self.menu = MainMenu(self)
         self.menu.show()
 
-    def create_map(self):
-        """Создание карты в стиле aim_botz"""
-        # Добавляем освещение
-        ambientLight = AmbientLight("ambient light")
-        ambientLight.setColor(Vec4(0.8, 0.8, 0.8, 1))  # Увеличиваем яркость общего освещения
-        self.ambientLightNP = self.render.attachNewNode(ambientLight)
-        self.render.setLight(self.ambientLightNP)
 
-        # Направленное освещение (имитация солнца)
-        directionalLight = DirectionalLight("directional light")
-        directionalLight.setColor(Vec4(1, 1, 1, 1))  # Делаем направленный свет ярче
-        directionalLight.setDirection(Vec3(-5, -5, -5))
-        self.directionalLightNP = self.render.attachNewNode(directionalLight)
-        self.render.setLight(self.directionalLightNP)
         
 if __name__ == "__main__":
     game = Game()

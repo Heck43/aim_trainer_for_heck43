@@ -4,7 +4,6 @@ from direct.interval.IntervalGlobal import Sequence, Parallel, LerpScaleInterval
 from direct.task import Task
 import os
 import sys
-from effects import SnowEffect, ChristmasLights  # Добавляем импорт эффектов
 
 class MainMenu:
     def __init__(self, game):
@@ -112,136 +111,148 @@ class MainMenu:
         self.create_menu()
         self.create_settings_menu()
         
-        # Инициализируем новогодние эффекты
-        self.snow_effect = SnowEffect(self.game)
-        self.christmas_lights = ChristmasLights(self.game)
-        
-        # Запускаем эффекты
-        self.snow_effect.start()
-        
     def create_menu(self):
-        # Updated styles for a modern look
-        self.settings_style = {
-            'frameColor': (0.12, 0.14, 0.17, 0.95),  # Darker, more professional background
-            'relief': DGG.FLAT,  # Flat design for modern look
-            'borderWidth': (0, 0),
-            'text_fg': (0.9, 0.9, 0.9, 1),  # Slightly off-white text
-            'text_scale': 0.045,
-            'text_align': TextNode.ALeft
-        }
-        
-        self.slider_style = {
-            'frameColor': (0.18, 0.2, 0.25, 0.9),  # Slightly lighter than background
-            'relief': DGG.FLAT,
-            'borderWidth': (0, 0),
-            'thumb_frameColor': (0.4, 0.6, 1, 1),  # Bright blue thumb
-            'thumb_relief': DGG.FLAT,
-            'thumb_frameSize': (-0.015, 0.015, -0.015, 0.015),  # Smaller thumb
-            'scale': 0.5,
-            'text_fg': (0.9, 0.9, 0.9, 1)
-        }
-        
-        self.button_style = {
-            'frameColor': (0.2, 0.22, 0.27, 0.9),  # Slightly lighter than sliders
-            'relief': DGG.FLAT,
-            'borderWidth': (0, 0),
-            'frameSize': (-0.25, 0.25, -0.04, 0.04),
-            'text_scale': 0.045,
-            'text_fg': (0.9, 0.9, 0.9, 1),
-            'text_align': TextNode.ACenter,
-            'pressEffect': 0  # Disable press effect for modern look
-        }
-
-        # Main menu frame with gradient effect
-        self.frame = DirectFrame(
-            frameColor=(0.1, 0.12, 0.15, 0.95),
-            frameSize=(-0.7, 0.7, -0.7, 0.7),
+        # Создаем затемненный фон
+        self.dark_bg = DirectFrame(
+            frameColor=(0.05, 0.05, 0.05, 0.9),
+            frameSize=(-2, 2, -2, 2),
             relief=DGG.FLAT,
-            borderWidth=(0, 0),
-            pos=(0, 0, 2)
+            parent=self.game.render2d
         )
 
-        # Modern title with glow effect
+        # Основной фрейм меню с улучшенным дизайном
+        self.frame = DirectFrame(
+            frameColor=(0.08, 0.08, 0.12, 0.98),
+            frameSize=(-0.6, 0.6, -0.5, 0.5),
+            relief=DGG.FLAT,
+            borderWidth=(0.005, 0.005),
+            pos=(0, 0, 0)
+        )
+
+        # Декоративные линии сверху и снизу
+        self.top_line = DirectFrame(
+            frameColor=(0.3, 0.5, 1, 0.8),
+            frameSize=(-0.55, 0.55, -0.002, 0.002),
+            relief=DGG.FLAT,
+            pos=(0, 0, 0.48),
+            parent=self.frame
+        )
+        
+        self.bottom_line = DirectFrame(
+            frameColor=(0.3, 0.5, 1, 0.8),
+            frameSize=(-0.55, 0.55, -0.002, 0.002),
+            relief=DGG.FLAT,
+            pos=(0, 0, -0.48),
+            parent=self.frame
+        )
+
+        # Заголовок с более современным стилем
         self.title = DirectLabel(
             text="AIM TRAINER",
-            scale=0.15,
-            pos=(0, 0, 0.4),
+            scale=0.12,
+            pos=(0, 0, 0.35),
             parent=self.frame,
-            text_fg=(0.4, 0.6, 1, 1),  # Bright blue title
+            text_fg=(0.9, 0.95, 1, 1),
             text_align=TextNode.ACenter,
-            text_shadow=(0, 0, 0, 0.5),
-            text_shadowOffset=(0.005, 0.005)
+            text_shadow=(0.2, 0.4, 0.8, 0.8),
+            text_shadowOffset=(0.003, -0.003),
+            frameColor=(0, 0, 0, 0)
         )
         
-        # Анимация заголовка
+        # Подзаголовок
+        self.subtitle = DirectLabel(
+            text="TRAIN YOUR PRECISION",
+            scale=0.04,
+            pos=(0, 0, 0.24),
+            parent=self.frame,
+            text_fg=(0.5, 0.6, 0.8, 1),
+            text_align=TextNode.ACenter,
+            frameColor=(0, 0, 0, 0)
+        )
+        
+        # Анимация заголовка (более плавная)
         self.title_animation = Sequence(
-            LerpScaleInterval(self.title, 1.0, 0.17),
-            LerpScaleInterval(self.title, 1.0, 0.13),
+            LerpScaleInterval(self.title, 2.0, 0.13, blendType='easeInOut'),
+            LerpScaleInterval(self.title, 2.0, 0.12, blendType='easeInOut'),
         )
         self.title_animation.loop()
         
-        # Кнопка "Play"
+        # Стиль кнопок
+        button_style = {
+            'relief': DGG.FLAT,
+            'borderWidth': (0, 0),
+            'frameSize': (-0.3, 0.3, -0.045, 0.045),
+            'text_scale': 0.05,
+            'text_fg': (0.95, 0.95, 0.95, 1),
+            'pressEffect': 0
+        }
+        
+        # Кнопка Play с акцентным цветом
         self.play_button = DirectButton(
-            text="Play",
+            text="PLAY",
             command=self.start_game,
-            pos=(0, 0, 0.1),
+            pos=(0, 0, 0.08),
             parent=self.frame,
-            frameColor=(0.2, 0.22, 0.27, 0.9),
-            relief=DGG.FLAT,
-            borderWidth=(0, 0),
-            frameSize=(-0.25, 0.25, -0.04, 0.04),
-            text_scale=0.045,
-            text_fg=(0.9, 0.9, 0.9, 1),
-            pressEffect=0
+            frameColor=(0.2, 0.4, 0.9, 0.9),
+            **button_style
         )
         self.menu_buttons.append(self.play_button)
 
-        # Кнопка "Settings"
+        # Кнопка Settings
         self.settings_button = DirectButton(
-            text="Settings",
+            text="SETTINGS",
             command=self.toggle_settings,
-            pos=(0, 0, 0),
+            pos=(0, 0, -0.05),
             parent=self.frame,
-            frameColor=(0.2, 0.22, 0.27, 0.9),
-            relief=DGG.FLAT,
-            borderWidth=(0, 0),
-            frameSize=(-0.25, 0.25, -0.04, 0.04),
-            text_scale=0.045,
-            text_fg=(0.9, 0.9, 0.9, 1),
-            pressEffect=0
+            frameColor=(0.15, 0.15, 0.2, 0.9),
+            **button_style
         )
         self.menu_buttons.append(self.settings_button)
 
-        # Кнопка "Exit"
+        # Кнопка Exit
         self.exit_button = DirectButton(
-            text="Exit",
+            text="EXIT",
             command=self.exit_game,
-            pos=(0, 0, -0.1),
+            pos=(0, 0, -0.18),
             parent=self.frame,
-            frameColor=(0.2, 0.22, 0.27, 0.9),
-            relief=DGG.FLAT,
-            borderWidth=(0, 0),
-            frameSize=(-0.25, 0.25, -0.04, 0.04),
-            text_scale=0.045,
-            text_fg=(0.9, 0.9, 0.9, 1),
-            pressEffect=0
+            frameColor=(0.15, 0.15, 0.2, 0.9),
+            **button_style
         )
         self.menu_buttons.append(self.exit_button)
 
-        # Добавляем эффекты при наведении для всех кнопок
+        # Добавляем эффекты при наведении
         for button in self.menu_buttons:
             button.bind(DGG.ENTER, self.button_hover_start, [button])
             button.bind(DGG.EXIT, self.button_hover_end, [button])
+        
+        # Версия игры в углу
+        self.version_label = DirectLabel(
+            text="v1.0",
+            scale=0.04,
+            pos=(0.5, 0, -0.43),
+            parent=self.frame,
+            text_fg=(0.4, 0.4, 0.5, 1),
+            text_align=TextNode.ARight,
+            frameColor=(0, 0, 0, 0)
+        )
 
     def button_hover_start(self, button, event):
         """Эффект при наведении на кнопку"""
-        LerpColorScaleInterval(button, 0.1, (1.2, 1.2, 1.2, 1)).start()
-        button['frameColor'] = (0.4, 0.6, 1, 0.9)  # Яркий синий при наведении
+        LerpColorScaleInterval(button, 0.15, (1.15, 1.15, 1.15, 1)).start()
+        # Сохраняем оригинальный цвет для кнопки Play
+        if button == self.play_button:
+            button['frameColor'] = (0.3, 0.5, 1, 1)
+        else:
+            button['frameColor'] = (0.25, 0.3, 0.4, 1)
 
     def button_hover_end(self, button, event):
         """Эффект при отведении курсора от кнопки"""
-        LerpColorScaleInterval(button, 0.1, (1, 1, 1, 1)).start()
-        button['frameColor'] = (0.2, 0.22, 0.27, 0.9)  # Возврат к исходному цвету
+        LerpColorScaleInterval(button, 0.15, (1, 1, 1, 1)).start()
+        # Возвращаем оригинальный цвет
+        if button == self.play_button:
+            button['frameColor'] = (0.2, 0.4, 0.9, 0.9)
+        else:
+            button['frameColor'] = (0.15, 0.15, 0.2, 0.9)
 
     def create_settings_menu(self):
         """Создание меню настроек"""
@@ -986,22 +997,30 @@ class MainMenu:
         self.game.save_settings()
         
     def show(self):
+        self.dark_bg.show()
         self.frame.show()
         # Показываем курсор мыши в меню
         props = WindowProperties()
         props.setCursorHidden(False)
         self.game.win.requestProperties(props)
         
-        # Анимация появления меню
-        Sequence(
-            LerpPosInterval(self.frame, 0.5, (0, 0, 0), (0, 0, 2), blendType='easeOut')
+        # Анимация появления меню с fade in
+        self.frame.setColorScale(1, 1, 1, 0)
+        self.dark_bg.setColorScale(1, 1, 1, 0)
+        Parallel(
+            LerpColorScaleInterval(self.frame, 0.4, (1, 1, 1, 1)),
+            LerpColorScaleInterval(self.dark_bg, 0.4, (1, 1, 1, 1))
         ).start()
         
     def hide(self):
-        # Анимация исчезновения меню
+        # Анимация исчезновения меню с fade out
         hide_sequence = Sequence(
-            LerpPosInterval(self.frame, 0.3, (0, 0, -2), (0, 0, 0), blendType='easeIn'),
-            Wait(0.3)  # Ждем окончания анимации
+            Parallel(
+                LerpColorScaleInterval(self.frame, 0.3, (1, 1, 1, 0)),
+                LerpColorScaleInterval(self.dark_bg, 0.3, (1, 1, 1, 0))
+            ),
+            Func(self.frame.hide),
+            Func(self.dark_bg.hide)
         )
         hide_sequence.start()
         
@@ -1023,12 +1042,6 @@ class MainMenu:
         
     def cleanup(self):
         """Очищаем все ресурсы меню"""
-        # Очищаем новогодние эффекты
-        if hasattr(self, 'snow_effect'):
-            self.snow_effect.cleanup()
-        if hasattr(self, 'christmas_lights'):
-            self.christmas_lights.cleanup()
-            
         # Очищаем остальные ресурсы меню
         if self.frame:
             # Останавливаем все анимации
@@ -1103,101 +1116,4 @@ class MainMenu:
         self.game.settings['nsfw_category'] = category
         self.game.save_settings()
 
-class DirectTab(DirectFrame):
-    def __init__(self, parent=None, **kw):
-        # Set default options
-        optiondefs = (
-            ('relief', None, None),
-            ('frameColor', (0.1, 0.1, 0.1, 0.9), None),
-            ('frameSize', (-0.7, 0.7, -0.5, 0.5), None),
-            ('borderWidth', (0, 0), None)
-        )
-        # Update options with user-provided values
-        self.defineoptions(kw, optiondefs)
-        
-        # Initialize the parent class
-        DirectFrame.__init__(self, parent)
-        
-        # Initialize options
-        self.initialiseoptions(DirectTab)
 
-class DirectNotebook(DirectFrame):
-    def __init__(self, parent=None, **kw):
-        # Set default options
-        optiondefs = (
-            ('relief', DGG.SUNKEN, None),
-            ('frameColor', (0.1, 0.1, 0.1, 0.9), None),
-            ('frameSize', (-0.7, 0.7, -0.5, 0.5), None),
-            ('borderWidth', (0.02, 0.02), None)
-        )
-        # Update options with user-provided values
-        self.defineoptions(kw, optiondefs)
-        
-        # Initialize the parent class
-        DirectFrame.__init__(self, parent)
-        
-        # Initialize options
-        self.initialiseoptions(DirectNotebook)
-        
-        # Initialize lists for tabs and pages
-        self.tabs = []
-        self.pages = []
-        self.current_page = None
-        
-        # Create frame for tab buttons at the top
-        self.tab_frame = DirectFrame(
-            parent=self,
-            pos=(0, 0, self['frameSize'][3]),
-            frameSize=(self['frameSize'][0], self['frameSize'][1], 0, 0.1),
-            frameColor=(0.15, 0.15, 0.15, 0.9)
-        )
-        
-    def addPage(self, text, page):
-        """Add a new page with a tab button"""
-        index = len(self.tabs)
-        tab_width = 0.28  # Increased width for tab buttons
-        
-        # Create tab button with adjusted starting position (moved left)
-        tab = DirectButton(
-            parent=self.tab_frame,
-            text=text,
-            text_scale=0.05,
-            text_fg=(1, 1, 1, 1),
-            frameSize=(-tab_width/2, tab_width/2, -0.05, 0.05),
-            pos=(index * tab_width - self['frameSize'][1]/2 + tab_width/2 - 0.4, 0, 0),  # Increased left offset to 0.4
-            command=self.selectPage,
-            extraArgs=[index],
-            relief=DGG.RAISED,
-            frameColor=(0.2, 0.2, 0.2, 0.9) if not self.tabs else (0.15, 0.15, 0.15, 0.9)
-        )
-        
-        # Add tab and page to lists
-        self.tabs.append(tab)
-        self.pages.append(page)
-        
-        # Reparent the page to the notebook
-        page.reparentTo(self)
-        
-        # Show first page by default
-        if not self.current_page:
-            page.show()
-            self.current_page = page
-        else:
-            page.hide()
-            
-    def selectPage(self, index):
-        """Switch to the selected tab/page"""
-        # Hide current page
-        if self.current_page:
-            self.current_page.hide()
-        
-        # Update tab colors
-        for i, tab in enumerate(self.tabs):
-            if i == index:
-                tab['frameColor'] = (0.2, 0.2, 0.2, 0.9)
-            else:
-                tab['frameColor'] = (0.15, 0.15, 0.15, 0.9)
-        
-        # Show selected page
-        self.pages[index].show()
-        self.current_page = self.pages[index]
