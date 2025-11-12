@@ -1,6 +1,6 @@
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel, DGG, DirectSlider, DirectCheckButton, DirectOptionMenu
 from panda3d.core import TextNode, WindowProperties
-from direct.interval.IntervalGlobal import Sequence, Parallel, LerpScaleInterval, LerpPosInterval, Wait, LerpColorScaleInterval
+from direct.interval.IntervalGlobal import Sequence, Parallel, LerpScaleInterval, LerpPosInterval, Wait, LerpColorScaleInterval, Func
 from direct.task import Task
 import os
 import sys
