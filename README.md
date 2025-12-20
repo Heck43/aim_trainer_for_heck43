@@ -1,167 +1,96 @@
-# Aim Trainer nsfw/sfm | Тренажер прицеливания nsfw/sfm
-![](https://i.imgur.com/zilmwPd.png)
-[English](#english) | [Русский](#русский)
+# Changelog - Aim Trainer
+
+## Версия 2.0 - Мультиплеер и Большой Рефакторинг ^w^
+
+### 🎮 Мультиплеер (NEW!)
+- **Добавлен полноценный мультиплеер режим** :3
+- Dedicated сервер (`multiplayer/server.py`) с автоматическим определением IP
+- UDP клиент-сервер архитектура для низкой задержки
+- JSON протокол для обмена данными между игроками
+- Лобби меню с отображением подключенных игроков и ping
+- Синхронизация позиций, поворотов камеры и оружия в реальном времени
+- 3D модели других игроков с загрузкой из `model_textures/untitled.bam`
+- Heartbeat система для предотвращения timeout'ов
+- Кнопка "START GAME" в лобби для запуска игры
+- Автоматический старт игры для всех клиентов при команде сервера
+
+### 🎨 Рефакторинг Меню
+- **Разбито монолитное `menu.py` на модульную систему** `menu_system/`
+- Отдельные модули для каждой вкладки настроек:
+  - `main_menu.py` - главное меню
+  - `graphics_tab.py` - настройки графики
+  - `controls_tab.py` - настройки управления
+  - `weapon_tab.py` - настройки оружия
+  - `game_tab.py` - игровые настройки
+  - `audio_tab.py` - настройки звука
+  - `postprocess_tab.py` - пост-обработка
+- Базовый класс `base_tab.py` для единообразия
+- Утилиты `ui_helpers.py` для создания UI элементов
+
+### 🖼️ Splash Screen
+- **Полностью переработан загрузочный экран** в стиле "calm, elegant, minimalist"
+- Темная сине-фиолетовая тема с белым/светло-серым текстом
+- Падающие снежинки для атмосферы
+- Реальная полоса прогресса, отражающая загрузку ресурсов
+- Последовательная загрузка: карта → звуки → текстуры → инициализация игры → подготовка меню
+- Плавные анимации и переходы
+- Интеграция с `ResourceManager` для кэширования ресурсов
+
+### ⚙️ Исправления и Улучшения
+
+#### Настройки
+- Удалены дубликаты в `settings.json` (weapon_position, recoil, motion_blur, screen_shake)
+- Стандартизированы boolean значения на `true`/`false`
+- Исправлено сохранение настроек пост-обработки (теперь сохраняются после перезапуска)
+- Исправлен UI пост-обработки (все элементы теперь помещаются в окно)
+
+#### Графика
+- Упрощена загрузка NSFW текстур (используются относительные пути для Panda3D)
+- Исправлена проблема с перекрытием манекенов и картинок при переключении режимов
+- Исправлен спавн целей (теперь спавнятся в правильной зоне арены, а не вокруг игрока)
+- Исправлена видимость целей при переключении NSFW/SFW (манекены полностью скрываются)
+
+#### UI/UX
+- Исправлена анимация наведения на кнопки (теперь масштабируются от центра без горизонтального смещения)
+- Добавлен метод `initial_hide()` для главного меню (меню не появляется до завершения splash screen)
+- Улучшена плавность переходов между экранами
+
+#### Производительность
+- **Добавлен `ResourceManager`** для централизованной загрузки и кэширования ресурсов
+- **Добавлен `TargetPool`** для пула целей (object pooling вместо постоянного создания/удаления)
+- Предзагрузка всех ресурсов во время splash screen
+- Кэширование текстур, звуков и моделей
+
+#### Мультиплеер - Технические Детали
+- Синхронизация состояния игроков с интерполяцией позиций и поворотов
+- Нормализация углов для предотвращения подергиваний при переходе через 0/360 градусов
+- Экспоненциальная интерполяция для плавного движения
+- Защита от больших скачков позиции (игнорирование при потере пакетов)
+- Предсказание движения (extrapolation) для компенсации задержки сети
+- Адаптивная скорость интерполяции в зависимости от расстояния
+- Правильная ориентация моделей игроков (+180 градусов для корректного направления взгляда)
+- Текст с ником и счетом поднят выше модели (4.5 единиц вместо 2.2)
+
+### 🐛 Исправленные Баги
+- NSFW текстуры не загружались из-за неправильных путей (Windows vs Unix)
+- Меню появлялось до завершения fade-out splash screen
+- Цели спавнились вокруг игрока вместо арены
+- При переключении режимов манекены и картинки накладывались друг на друга
+- Настройки пост-обработки не сохранялись после перезапуска
+- Игроки отключались из-за отсутствия heartbeat в лобби
+- Модельки игроков смотрели в противоположную сторону
+- Подергивания и телепортации моделей из-за неправильной интерполяции углов
+- Модельки отставали от реальной позиции игрока
+
+### 📝 Технический Долг
+- Улучшена модульность кода
+- Улучшена читаемость и поддерживаемость
+- Добавлены комментарии в критических местах
+- Оптимизирована загрузка ресурсов
 
 ---
 
-<a name="english"></a>
-# Aim Trainer [EN]
+**Примечание**: Этот патч включает в себя большой рефакторинг кодовой базы и добавление мультиплеер функциональности. Рекомендуется протестировать все функции перед использованием в продакшене :3
 
-A modern 3D aim trainer game built with Python and Panda3D engine. This application helps players improve their aiming skills and reaction time in first-person shooter games.
+*Написано с любовью и вниманием к деталям* ^w^ 💕
 
-![Game Screenshot](https://i.imgur.com/jNchiiz.png)
-
-## Features
-
-- 3D environment with realistic aim training
-- Multiple weapon types with unique characteristics
-- Customizable target settings and spawn rates
-- Advanced hit detection system with damage multipliers
-- Performance tracking and statistics
-- Modern user interface with animated menus
-- Configurable game settings including FOV, sensitivity, and graphics
-- Special effects including hit markers, bullet traces, and shell casings
-- Music system with multiple tracks and volume control
-- Jump mechanics with combo system
-- NSFW/SFM content support
-
-![Features Showcase](https://i.imgur.com/amXo8BJ.png)
-
-## Technical Details
-
-- **Engine**: Panda3D 1.10.15
-- **Language**: Python 3.x
-- **Dependencies**: 
-  - panda3d==1.10.15
-  - numpy>=1.21.0
-- **Configuration**: JSON-based settings system
-
-## Requirements
-
-- Python 3.x
-- Panda3D engine
-- Additional Python packages (specified in requirements.txt)
-- Graphics card with OpenGL support
-
-## Controls
-
-- Mouse movement to aim
-- Left click to shoot targets
-- Space to jump (with combo system)
-- ESC to access menu
-- Mouse wheel to switch weapons
-- Right click to aim down sights
-- 1-9 keys for quick weapon selection
-
-## Installation
-
-### Option 1: Using Pre-built Release
-1. Download the latest release from the [Releases](https://github.com/Heck43/aim_trainer_for_heck43/releases) page
-2. Extract the archive to your desired location
-3. Run `main.exe` to start the game
-
-### Option 2: Building from Source
-1. Clone this repository
-2. Install the required dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-3. Run `main.py` to start the game
-
-## Development
-
-This project is developed with focus on:
-- Clean, maintainable Python code
-- Modular architecture with separate components for:
-  - Weapon systems
-  - Target management
-  - Effects and particles
-  - Menu interface
-  - Audio system
-- Customizable game settings
-- Smooth performance optimization
-- Modern visual effects
-
-Feel free to contribute to the project or report any issues!
-
----
-
-<a name="русский"></a>
-# Тренажер прицеливания [RU]
-
-Современный 3D тренажер прицеливания, созданный на Python с использованием движка Panda3D. Это приложение помогает игрокам улучшить навыки прицеливания и время реакции в шутерах от первого лица.
-
-![Скриншот игры](https://i.imgur.com/jNchiiz.png)
-
-## Особенности
-
-- 3D окружение с реалистичной тренировкой прицеливания
-- Различные типы оружия с уникальными характеристиками
-- Настраиваемые параметры мишеней и частота их появления
-- Продвинутая система определения попаданий с множителями урона
-- Отслеживание производительности и статистика
-- Современный пользовательский интерфейс с анимированными меню
-- Настраиваемые игровые параметры (FOV, чувствительность, графика)
-- Специальные эффекты: маркеры попаданий, следы пуль, гильзы
-- Система музыки с несколькими треками и контролем громкости
-- Механика прыжков с системой комбо
-- Поддержка NSFW/SFM контента
-
-![Демонстрация функций](https://i.imgur.com/amXo8BJ.png)
-
-## Технические детали
-
-- **Движок**: Panda3D 1.10.15
-- **Язык**: Python 3.x
-- **Зависимости**: 
-  - panda3d==1.10.15
-  - numpy>=1.21.0
-- **Конфигурация**: Система настроек на основе JSON
-
-## Требования
-
-- Python 3.x
-- Движок Panda3D
-- Дополнительные пакеты Python (указаны в requirements.txt)
-- Видеокарта с поддержкой OpenGL
-
-## Управление
-
-- Движение мыши для прицеливания
-- Левый клик для стрельбы по мишеням
-- Пробел для прыжка (с системой комбо)
-- ESC для доступа к меню
-- Колесико мыши для смены оружия
-- Правый клик для прицеливания
-- Клавиши 1-9 для быстрого выбора оружия
-
-## Установка
-
-### Вариант 1: Использование готового релиза
-1. Скачайте последний релиз со страницы [Releases](https://github.com/Heck43/aim_trainer_for_heck43/releases)
-2. Распакуйте архив в нужную папку
-3. Запустите `main.exe` для старта игры
-
-### Вариант 2: Сборка из исходного кода
-1. Клонируйте этот репозиторий
-2. Установите необходимые зависимости:
-   ```
-   pip install -r requirements.txt
-   ```
-3. Запустите `main.py` для старта игры
-
-## Разработка
-
-Проект разработан с фокусом на:
-- Чистый, поддерживаемый Python код
-- Модульную архитектуру с отдельными компонентами для:
-  - Систем оружия
-  - Управления мишенями
-  - Эффектов и частиц
-  - Интерфейса меню
-  - Аудио системы
-- Настраиваемые игровые параметры
-- Оптимизацию производительности
-- Современные визуальные эффекты
-
-Не стесняйтесь вносить свой вклад в проект или сообщать о проблемах! 
