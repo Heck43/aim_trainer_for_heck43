@@ -6,44 +6,47 @@ import sys
 import threading
 
 class Target:
-    # Кэш для текстур
     texture_cache = {}
-    # Флаг, указывающий загружена ли категория
     category_loaded = False
-    # Текущая загруженная категория
     current_category = None
+    images_cache = {}
     
-    # Базовые текстуры для обычного режима - манекены без текстур
     TARGET_TEXTURES = []
 
     @staticmethod
     def get_images_from_category(category):
-        """Упрощенная загрузка изображений из категории"""
-        # Получаем базовый путь к проекту
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            # Если запущено как exe
-            base_path = os.path.dirname(sys.executable)
+        """Упрощенная загрузка изображений из категории с кэшированием"""
+        if category in Target.images_cache:
+            return Target.images_cache[category]
+        
+        if getattr(sys, 'frozen', False):
+            exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+            # Проверяем _internal папку (one-folder mode)
+            internal_dir = os.path.join(exe_dir, '_internal')
+            if os.path.exists(internal_dir):
+                base_path = internal_dir
+            elif hasattr(sys, '_MEIPASS'):
+                # one-file mode
+                base_path = sys._MEIPASS
+            else:
+                base_path = exe_dir
         else:
-            # Если запущено в режиме разработки
             base_path = os.path.dirname(os.path.abspath(__file__))
         
-        # Формируем путь к категории NSFW (относительный путь для Panda3D)
         category_rel_path = os.path.join('images', 'nsfw', category)
         category_full_path = os.path.join(base_path, category_rel_path)
         
-        # Проверяем существование папки
         if not os.path.exists(category_full_path):
             print(f"⚠️ Папка не найдена: {category_full_path}")
+            Target.images_cache[category] = []
             return []
         
-        # Собираем все изображения с поддерживаемыми расширениями
         valid_extensions = ('.png', '.jpg', '.jpeg')
         images = []
         
         try:
             for file in os.listdir(category_full_path):
                 if file.lower().endswith(valid_extensions):
-                    # Используем ОТНОСИТЕЛЬНЫЙ путь для Panda3D
                     relative_path = os.path.join(category_rel_path, file).replace('\\', '/')
                     images.append(relative_path)
             
@@ -51,6 +54,7 @@ class Target:
         except Exception as e:
             print(f"❌ Ошибка при чтении папки {category_full_path}: {e}")
         
+        Target.images_cache[category] = images
         return images
 
     @staticmethod
@@ -62,14 +66,11 @@ class Target:
         Target.category_loaded = False
         Target.current_category = category
         
-        # Очищаем старый кэш
         Target.texture_cache.clear()
         
-        # Загружаем текстуры из NSFW категории
         category_images = Target.get_images_from_category(category)
         for image_path in category_images:
             try:
-                # Нормализуем путь для Panda3D
                 normalized_path = image_path.replace('\\', '/')
                 tex = game.loader.loadTexture(normalized_path)
                 if tex:
@@ -80,9 +81,9 @@ class Target:
         Target.category_loaded = True
         print(f"✅ Предзагружено {len(Target.texture_cache)} текстур для категории '{category}'")
 
-    def load_texture(self, texture_path):
+    @staticmethod
+    def load_texture(texture_path):
         """Загружает текстуру с использованием кэша"""
-        # Нормализуем путь для кроссплатформенности
         normalized_path = texture_path.replace('\\', '/')
         
         if normalized_path in Target.texture_cache:
@@ -103,17 +104,15 @@ class Target:
         self.max_hp = 100
         self.current_hp = self.max_hp
         self.is_active = True
-        self.pooled = pooled  # Флаг: из пула или нет
+        self.pooled = pooled
         self.texture_path = None
         
-        # Проверяем режим отображения
         show_images = self.game.settings.get('show_target_images', True)
         if show_images:
             category = self.game.settings.get('nsfw_category', 'furry')
             if not Target.category_loaded or Target.current_category != category:
                 Target.preload_category(game, category)
             
-            # Выбираем текстуру из NSFW категории
             category_images = self.get_images_from_category(category)
             if category_images:
                 self.texture_path = random.choice(category_images)
@@ -126,41 +125,33 @@ class Target:
         show_images = self.game.settings.get('show_target_images', True)
         
         if show_images:
-            # Показываем картинку
             if hasattr(self, 'visual'):
                 self.visual.show()
                 self.visual.setTransparency(1)
-                self.visual.setColor(1, 1, 1, 1)  # Полностью непрозрачная картинка
+                self.visual.setColor(1, 1, 1, 1)
             
-            # ПОЛНОСТЬЮ скрываем части манекена (hide вместо прозрачности)
             for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
                 np.hide()
         else:
-            # Скрываем картинку
             if hasattr(self, 'visual'):
                 self.visual.hide()
             
-            # Показываем части манекена красным цветом
             for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
                 np.show()
-                np.setColor(0.8, 0.2, 0.2, 1)  # Красный цвет, полностью непрозрачный
-                # Настраиваем прозрачность для правильного отображения
+                np.setColor(0.8, 0.2, 0.2, 1)
                 np.setTransparency(1)
                 np.setBin("transparent", 0)
-                np.setDepthWrite(True)  # Включаем запись в буфер глубины
+                np.setDepthWrite(True)
 
     def create_model(self):
-        # Create root node
         self.model = NodePath("target_root")
         self.model.setPos(self.position)
         self.model.reparentTo(self.game.render)
         
-        # Create visual representation (card with texture)
         cm = CardMaker('card')
-        cm.setFrame(-0.8, 0.8, 0, 3.0)  # 1.6x3.0 meters
+        cm.setFrame(-0.8, 0.8, 0, 3.0)
         self.visual = self.model.attachNewNode(cm.generate())
         
-        # Load and apply texture only if we have one
         if self.texture_path:
             try:
                 tex = self.load_texture(self.texture_path)
@@ -172,22 +163,18 @@ class Target:
             except:
                 print(f"Error loading texture: {self.texture_path}")
         
-        # Create collision geometry
-        # Head (sphere)
         head_node = CollisionNode('target_head')
         head_sphere = CollisionSphere(0, 0, 2.6, 0.6)
         head_node.addSolid(head_sphere)
         head_node.setIntoCollideMask(BitMask32.bit(1))
         self.head_np = self.model.attachNewNode(head_node)
         
-        # Body (box)
         body_node = CollisionNode('target_body')
         body_box = CollisionBox(Point3(0, 0, 1.5), 0.7, 0.4, 0.6)
         body_node.addSolid(body_box)
         body_node.setIntoCollideMask(BitMask32.bit(1))
         self.body_np = self.model.attachNewNode(body_node)
         
-        # Arms (boxes)
         left_arm_node = CollisionNode('target_left_arm')
         left_arm_box = CollisionBox(Point3(-1.0, 0, 1.5), 0.3, 0.3, 0.6)
         left_arm_node.addSolid(left_arm_box)
@@ -200,72 +187,59 @@ class Target:
         right_arm_node.setIntoCollideMask(BitMask32.bit(1))
         self.right_arm_np = self.model.attachNewNode(right_arm_node)
         
-        # Legs (box)
         legs_node = CollisionNode('target_legs')
         legs_box = CollisionBox(Point3(0, 0, 0.6), 0.7, 0.4, 1.0)
         legs_node.addSolid(legs_box)
         legs_node.setIntoCollideMask(BitMask32.bit(1))
         self.legs_np = self.model.attachNewNode(legs_node)
         
-        # Настраиваем начальную видимость
         self.update_visibility()
         
-        # Поворачиваем манекен лицом к игроку
         self.model.lookAt(0, 0, 0)
-        self.model.setH(self.model.getH() + 180)  # Разворачиваем на 180 градусов
+        self.model.setH(self.model.getH() + 180)
 
     def activate(self):
         """Активирует цель из пула (показывает, включает коллизии, новая позиция)"""
         self.is_active = True
         self.current_hp = self.max_hp
         
-        # Показываем модель
         if hasattr(self, 'model'):
             self.model.show()
         
-        # Включаем коллизии
         for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
             if np.node().isOfType(CollisionNode.getClassType()):
                 np.node().setIntoCollideMask(BitMask32.bit(1))
         
-        # Новая случайная позиция
         self.reset_position()
         
-        # Новая текстура если NSFW режим
         self.reset_texture()
         
-        # ВАЖНО: обновляем видимость согласно текущим настройкам
         self.update_visibility()
     
     def deactivate(self):
         """Деактивирует цель (скрывает, выключает коллизии)"""
         self.is_active = False
         
-        # Скрываем модель
         if hasattr(self, 'model'):
             self.model.hide()
         
-        # Выключаем коллизии
         for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
             if np.node().isOfType(CollisionNode.getClassType()):
                 np.node().setIntoCollideMask(BitMask32.allOff())
     
     def reset_position(self):
         """Устанавливает новую случайную позицию"""
-        # Параметры зоны спавна (как в оригинальном setup_targets)
-        min_distance = 15  # Минимальная дистанция от игрока
-        max_distance = 35  # Максимальная дистанция от игрока
-        arena_width = 30   # Ширина арены
+        min_distance = 15
+        max_distance = 35
+        arena_width = 30
         
-        # Генерируем случайную позицию
         x = random.uniform(-arena_width/2, arena_width/2)
         y = random.uniform(min_distance, max_distance)
-        z = 1  # Высота манекена над землей
+        z = 1
         
         self.position = Point3(x, y, z)
         if hasattr(self, 'model'):
             self.model.setPos(self.position)
-            # Поворачиваем лицом к игроку
             self.model.lookAt(0, 0, 0)
             self.model.setH(self.model.getH() + 180)
     
@@ -275,29 +249,24 @@ class Target:
         if show_images:
             category = self.game.settings.get('nsfw_category', 'furry')
             
-            # Проверяем, нужно ли перезагрузить категорию
             if not Target.category_loaded or Target.current_category != category:
                 Target.preload_category(self.game, category)
             
             category_images = self.get_images_from_category(category)
             if category_images:
                 self.texture_path = random.choice(category_images)
-                # Применяем новую текстуру
                 if hasattr(self, 'visual') and self.texture_path:
                     tex = self.load_texture(self.texture_path)
                     if tex:
                         self.visual.setTexture(tex)
         else:
-            # Если NSFW выключен, убираем текстуру
             self.texture_path = None
     
     def destroy(self):
         """Уничтожает цель (возвращает в пул или реально уничтожает)"""
         if self.pooled and hasattr(self.game, 'target_pool'):
-            # Возвращаем в пул вместо уничтожения
             self.game.target_pool.release(self)
         else:
-            # Реальное уничтожение
             self.real_destroy()
     
     def real_destroy(self):
@@ -307,20 +276,17 @@ class Target:
 
     def respawn(self):
         self.is_active = False
-        # Скрываем все части манекена и отключаем коллизии
         self.visual.hide()
         for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
             np.hide()
         self.disable_collisions()
         
-        # Через 3 секунды восстанавливаем манекен
         taskMgr.doMethodLater(3.0, self.restore_target, 'restore_target')
 
     def restore_target(self, task):
         self.current_hp = self.max_hp
         self.is_active = True
         
-        # Выбираем новую текстуру только если включен режим изображений
         show_images = self.game.settings.get('show_target_images', True)
         if show_images:
             category = self.game.settings.get('nsfw_category', 'furry')
@@ -335,7 +301,6 @@ class Target:
                     self.visual.setBin("transparent", 0)
                     self.visual.setDepthWrite(False)
         
-        # Показываем все части и включаем коллизии
         self.visual.show()
         for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
             np.show()
@@ -352,7 +317,6 @@ class Target:
         if self.current_hp <= 0:
             self.respawn()
         else:
-            # Change color based on remaining health
             health_fraction = self.current_hp / self.max_hp
             self.visual.setColorScale(1, health_fraction, health_fraction, 1)
 
@@ -367,11 +331,11 @@ class Target:
     def get_damage_for_part(self, part_name):
         """Возвращает урон в зависимости от части тела"""
         damages = {
-            'target_head': 100,      # Голова - мгновенное убийство
-            'target_body': 60,       # Тело - средний урон
-            'target_left_arm': 40,   # Руки - малый урон
+            'target_head': 100,
+            'target_body': 60,
+            'target_left_arm': 40,
             'target_right_arm': 40,
-            'target_legs': 40        # Ноги - малый урон
+            'target_legs': 40
         }
         return damages.get(part_name, 0)
 
@@ -380,7 +344,6 @@ class Target:
         if not self.is_active:
             return False, None, 0
 
-        # Создаем луч для проверки попадания
         self.game.picker.setFromLens(self.game.camNode, from_point.x, from_point.y)
         
         if self.game.cQueue.getNumEntries() > 0:
@@ -390,13 +353,11 @@ class Target:
             hit_node = entry.getIntoNode()
             hit_name = hit_node.getName()
             
-            # Получаем точку попадания в мировых координатах
             hit_pos = entry.getSurfacePoint(self.game.render)
             
-            # Получаем урон в зависимости от части тела
             damage = self.get_damage_for_part(hit_name)
             
-            if damage > 0:  # Если попали в валидную часть тела
+            if damage > 0:
                 self.take_damage(damage)
                 return True, hit_pos, damage
                 

@@ -8,9 +8,22 @@ import time
 import sys
 import os
 
-# Добавляем путь к родительской папке для импорта protocol
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from protocol import Protocol, MSG_CONNECT, MSG_DISCONNECT, MSG_PLAYER_STATE, MSG_PING
+# Импорт protocol (работает и в исходниках, и в PyInstaller)
+try:
+    # Абсолютный импорт для PyInstaller
+    from multiplayer.protocol import Protocol, MSG_CONNECT, MSG_DISCONNECT, MSG_PLAYER_STATE, MSG_PING
+except ImportError:
+    try:
+        # Относительный импорт для запуска как модуля
+        from .protocol import Protocol, MSG_CONNECT, MSG_DISCONNECT, MSG_PLAYER_STATE, MSG_PING
+    except ImportError:
+        # Для запуска напрямую из файла (fallback)
+        import sys
+        import os
+        parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if parent_dir not in sys.path:
+            sys.path.insert(0, parent_dir)
+        from multiplayer.protocol import Protocol, MSG_CONNECT, MSG_DISCONNECT, MSG_PLAYER_STATE, MSG_PING
 
 class Player:
     """Информация об игроке"""

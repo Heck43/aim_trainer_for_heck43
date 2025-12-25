@@ -12,7 +12,7 @@ class TargetPool:
         self.in_use = []     # Активные цели
         self.initial_size = initial_size
         
-        print(f"🎯 Создаем пул из {initial_size} целей...")
+        print(f"[POOL] Creating pool of {initial_size} targets...")
         
         # Создаем пул заранее (без импорта здесь, импорт будет в main.py)
         # Цели создаются в методе initialize после того как Target станет доступен
@@ -26,7 +26,7 @@ class TargetPool:
             target.deactivate()
             self.available.append(target)
         
-        print(f"✅ Пул инициализирован: {len(self.available)} целей готовы")
+        print(f"[OK] Pool initialized: {len(self.available)} targets ready")
     
     def acquire(self):
         """Берет цель из пула"""
@@ -34,7 +34,7 @@ class TargetPool:
             target = self.available.pop()
         else:
             # Пул пустой — создаем новую (редкий случай)
-            print("⚠️ Пул целей пуст, создаем дополнительную цель")
+            print("[WARN] Target pool empty, creating additional target")
             from target import Target
             target = Target(self.game, pooled=True)
         
@@ -69,7 +69,7 @@ class TargetPool:
             if hasattr(target, 'update_visibility'):
                 target.update_visibility()
         
-        print(f"🔄 Обновлено {len(self.in_use)} активных целей")
+        print(f"[UPDATE] Refreshed {len(self.in_use)} active targets")
     
     def get_stats(self):
         """Возвращает статистику пула"""
@@ -91,5 +91,5 @@ class TargetPool:
         self.available.clear()
         self.in_use.clear()
         
-        print("🗑️ Пул целей очищен")
+        print("[CLEANUP] Target pool cleared")
 

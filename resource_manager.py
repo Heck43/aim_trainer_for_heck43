@@ -29,13 +29,11 @@ class ResourceManager:
         resources.append(('model', 'models/map.glb'))
         resources.append(('model', 'models/weapon.glb'))
         
-        # Звуки
+        # Звуки (убрали ui_click и ui_hover так как файлы отсутствуют)
         sound_files = [
             'sounds/pistol_shot.wav',
             'sounds/rifle_shot.wav',
-            'sounds/sniper_shot.wav',
-            'sounds/ui_click.wav',
-            'sounds/ui_hover.wav'
+            'sounds/sniper_shot.wav'
         ]
         for sound in sound_files:
             resources.append(('sound', sound))
@@ -66,13 +64,22 @@ class ResourceManager:
                     filename = os.path.basename(path)
                     self.on_progress(progress, filename)
             except Exception as e:
-                print(f"⚠️ Ошибка загрузки {path}: {e}")
+                print(f"[WARN] Error loading {path}: {e}")
                 self.loaded_resources = i + 1
     
     def get_nsfw_images(self, category):
         """Получает список NSFW изображений для категории"""
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            base_path = os.path.dirname(sys.executable)
+        if getattr(sys, 'frozen', False):
+            exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+            # Проверяем _internal папку (one-folder mode)
+            internal_dir = os.path.join(exe_dir, '_internal')
+            if os.path.exists(internal_dir):
+                base_path = internal_dir
+            elif hasattr(sys, '_MEIPASS'):
+                # one-file mode
+                base_path = sys._MEIPASS
+            else:
+                base_path = exe_dir
         else:
             base_path = os.path.dirname(os.path.abspath(__file__))
         
@@ -91,7 +98,7 @@ class ResourceManager:
                     rel_path = os.path.join(category_rel_path, file).replace('\\', '/')
                     images.append(rel_path)
         except Exception as e:
-            print(f"❌ Ошибка чтения директории {category_full_path}: {e}")
+            print(f"[ERROR] Error reading directory {category_full_path}: {e}")
         
         return images
     
@@ -106,7 +113,7 @@ class ResourceManager:
                 self.textures[path] = tex
                 return tex
         except Exception as e:
-            print(f"❌ Ошибка загрузки текстуры {path}: {e}")
+            print(f"[ERROR] Error loading texture {path}: {e}")
         
         return None
     
@@ -121,7 +128,7 @@ class ResourceManager:
                 self.sounds[path] = sound
                 return sound
         except Exception as e:
-            print(f"❌ Ошибка загрузки звука {path}: {e}")
+            print(f"[ERROR] Error loading sound {path}: {e}")
         
         return None
     
@@ -138,7 +145,7 @@ class ResourceManager:
                 # Возвращаем копию для использования
                 return model.copyTo(self.game.render)
         except Exception as e:
-            print(f"❌ Ошибка загрузки модели {path}: {e}")
+            print(f"[ERROR] Error loading model {path}: {e}")
         
         return None
     

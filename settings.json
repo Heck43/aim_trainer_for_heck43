@@ -1,6 +1,6 @@
 {
     "sensitivity": 32.219486236572266,
-    "fov": 106,
+    "fov": 81,
     "resolution": "1024x768",
     "show_score": true,
     "show_timer": true,
@@ -9,7 +9,7 @@
     "damage_numbers": true,
     "killfeed": true,
     "show_fps": true,
-    "bhop_enabled": 0,
+    "bhop_enabled": false,
     "weapon_position": {
         "x": 0.25,
         "y": 0.6000001430511475,
@@ -24,9 +24,9 @@
     "screen_shake_enabled": true,
     "target_count": 10,
     "spread_enabled": true,
-    "fullscreen": 0,
+    "fullscreen": false,
     "windowed_resolution": "1024x768",
-    "nsfw_category": "anime",
+    "nsfw_category": "furry",
     "bloom_intensity": 0.10000000149011612,
     "blur_amount": 0.0,
     "bloom_enabled": false,

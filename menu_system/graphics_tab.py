@@ -17,7 +17,6 @@ class GraphicsTab(BaseTab):
     
     def create_ui(self):
         """Создает UI элементы вкладки"""
-        # Resolution
         resolution_label = create_label(
             "Resolution",
             pos=(-0.6, 0, 0.3),
@@ -45,7 +44,6 @@ class GraphicsTab(BaseTab):
         )
         self.elements.append(self.resolution_menu)
         
-        # FOV
         fov_label = create_label("FOV", pos=(-0.6, 0, 0.15), parent=self.frame)
         self.elements.append(fov_label)
         
@@ -58,7 +56,6 @@ class GraphicsTab(BaseTab):
         )
         self.elements.append(self.fov_slider)
         
-        # Fullscreen
         fullscreen_label = create_label("Fullscreen", pos=(-0.6, 0, -0.15), parent=self.frame)
         self.elements.append(fullscreen_label)
         
@@ -71,7 +68,6 @@ class GraphicsTab(BaseTab):
         self.fullscreen_checkbox['indicatorValue'] = self.game.settings.get('fullscreen', False)
         self.elements.append(self.fullscreen_checkbox)
         
-        # NSFW Mode
         nsfw_label = create_label("NSFW mode", pos=(-0.6, 0, 0), parent=self.frame)
         self.elements.append(nsfw_label)
         
@@ -84,7 +80,6 @@ class GraphicsTab(BaseTab):
         self.show_images_checkbox['indicatorValue'] = self.game.settings.get('show_target_images', True)
         self.elements.append(self.show_images_checkbox)
         
-        # NSFW Category
         self.nsfw_categories = ["furry", "anime", "futa", "femboy", "hentai", "fnia", "furry_2", "furry_3"]
         
         self.nsfw_category_label = create_label("NSFW Category", pos=(-0.6, 0, -0.3), parent=self.frame)
@@ -110,7 +105,6 @@ class GraphicsTab(BaseTab):
         )
         self.elements.append(self.nsfw_category_menu)
         
-        # Hide category menu if NSFW mode is disabled
         if not self.game.settings.get('show_target_images', True):
             self.nsfw_category_menu.hide()
             self.nsfw_category_label.hide()
@@ -178,8 +172,12 @@ class GraphicsTab(BaseTab):
             self.nsfw_category_menu.hide()
             self.nsfw_category_label.hide()
         
-        # Обновляем все активные цели если пул существует
-        if hasattr(self.game, 'target_pool') and self.game.target_pool:
+        if (hasattr(self.game, 'target_pool') and self.game.target_pool and 
+            hasattr(self.game, 'menu') and self.game.menu and 
+            not self.game.menu.frame.isHidden()):
+            return
+        
+        if hasattr(self.game, 'target_pool') and self.game.target_pool and len(self.game.targets) > 0:
             self.game.target_pool.refresh_all_active()
     
     def update_nsfw_category(self, category):
@@ -187,7 +185,11 @@ class GraphicsTab(BaseTab):
         self.game.settings['nsfw_category'] = category
         self.game.save_settings()
         
-        # Обновляем все активные цели если пул существует
-        if hasattr(self.game, 'target_pool') and self.game.target_pool:
+        if (hasattr(self.game, 'target_pool') and self.game.target_pool and 
+            hasattr(self.game, 'menu') and self.game.menu and 
+            not self.game.menu.frame.isHidden()):
+            return
+        
+        if hasattr(self.game, 'target_pool') and self.game.target_pool and len(self.game.targets) > 0:
             self.game.target_pool.refresh_all_active()
 

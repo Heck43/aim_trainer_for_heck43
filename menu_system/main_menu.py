@@ -7,7 +7,6 @@ from direct.interval.IntervalGlobal import Sequence, Parallel, LerpScaleInterval
 from direct.filter.CommonFilters import CommonFilters
 import random
 
-# Импортируем вкладки настроек
 from .graphics_tab import GraphicsTab
 from .controls_tab import ControlsTab
 from .weapon_tab import WeaponTab
@@ -24,27 +23,16 @@ class MainMenu:
         self.menu_buttons = []
         self.background_objects = []
         
-        # Загружаем звуковые эффекты UI
-        try:
-            self.hover_sound = game.loader.loadSfx("sounds/ui_hover.wav")
-            self.click_sound = game.loader.loadSfx("sounds/ui_click.wav")
-            self.hover_sound.setVolume(0.3)
-            self.click_sound.setVolume(0.5)
-        except:
-            self.hover_sound = None
-            self.click_sound = None
-            print("Warning: UI sound effects not found")
+        self.hover_sound = None
+        self.click_sound = None
         
-        # Загружаем разрешения экрана
         self.current_resolution = self.game.settings.get('resolution', '1280x720')
         self.resolutions = self.get_supported_resolutions()
         
-        # Создаём элементы меню
         self.create_dynamic_background()
         self.create_menu()
         self.create_settings_menu()
         
-        # Скрываем меню при создании (покажем после splash screen)
         self.initial_hide()
     
     def get_supported_resolutions(self):
@@ -112,7 +100,7 @@ class MainMenu:
         self.bg_root.setPos(0, 50, 0)
         
         for i in range(8):
-            obj = self.game.loader.loadModel("models/box")
+            obj = self.game.safe_load_model("models/box")
             obj.reparentTo(self.bg_root)
             
             x = random.uniform(-20, 20)
@@ -166,7 +154,6 @@ class MainMenu:
     
     def create_menu(self):
         """Создает главное меню"""
-        # Затемненный фон
         self.dark_bg = DirectFrame(
             frameColor=(0.05, 0.05, 0.05, 0.9),
             frameSize=(-2, 2, -2, 2),
@@ -174,7 +161,6 @@ class MainMenu:
             parent=self.game.render2d
         )
         
-        # Основной фрейм меню
         self.frame = DirectFrame(
             frameColor=(0.08, 0.08, 0.12, 0.98),
             frameSize=(-0.6, 0.6, -0.5, 0.5),
@@ -183,7 +169,6 @@ class MainMenu:
             pos=(0, 0, 0)
         )
         
-        # Декоративные линии
         self.top_line = DirectFrame(
             frameColor=(0.3, 0.5, 1, 0.8),
             frameSize=(-0.55, 0.55, -0.002, 0.002),
@@ -200,7 +185,6 @@ class MainMenu:
             parent=self.frame
         )
         
-        # Заголовок
         self.title = DirectLabel(
             text="AIM TRAINER",
             scale=0.12,
@@ -213,7 +197,6 @@ class MainMenu:
             frameColor=(0, 0, 0, 0)
         )
         
-        # Подзаголовок
         self.subtitle = DirectLabel(
             text="TRAIN YOUR PRECISION",
             scale=0.04,
@@ -224,14 +207,12 @@ class MainMenu:
             frameColor=(0, 0, 0, 0)
         )
         
-        # Анимация заголовка
         self.title_animation = Sequence(
             LerpScaleInterval(self.title, 2.0, 0.13, blendType='easeInOut'),
             LerpScaleInterval(self.title, 2.0, 0.12, blendType='easeInOut'),
         )
         self.title_animation.loop()
         
-        # Стиль кнопок
         button_style = {
             'relief': DGG.FLAT,
             'borderWidth': (0, 0),
@@ -241,7 +222,6 @@ class MainMenu:
             'pressEffect': 0
         }
         
-        # Кнопки
         self.play_button = DirectButton(
             text="PLAY",
             command=self.start_game,
@@ -282,12 +262,10 @@ class MainMenu:
         )
         self.menu_buttons.append(self.exit_button)
         
-        # Эффекты при наведении
         for button in self.menu_buttons:
             button.bind(DGG.ENTER, self.button_hover_start, [button])
             button.bind(DGG.EXIT, self.button_hover_end, [button])
         
-        # Версия
         self.version_label = DirectLabel(
             text="v1.0",
             scale=0.04,
@@ -300,7 +278,6 @@ class MainMenu:
     
     def create_settings_menu(self):
         """Создает меню настроек с модульными вкладками"""
-        # Фрейм настроек
         self.settings_frame = DirectFrame(
             frameColor=(0.08, 0.08, 0.12, 0.95),
             frameSize=(-0.9, 0.9, -0.65, 0.65),
@@ -310,7 +287,6 @@ class MainMenu:
         )
         self.settings_frame.hide()
         
-        # Заголовок
         self.settings_title = DirectLabel(
             text="SETTINGS",
             scale=0.08,
@@ -324,7 +300,6 @@ class MainMenu:
             relief=None
         )
         
-        # Контейнер для кнопок категорий
         self.categories_container = DirectFrame(
             frameColor=(0.12, 0.14, 0.17, 0),
             frameSize=(-0.2, 0.2, -0.6, 0.6),
@@ -332,7 +307,6 @@ class MainMenu:
             parent=self.settings_frame
         )
         
-        # Создаем вкладки
         self.tabs = {
             'graphics': GraphicsTab(self.game, self.settings_frame, self.resolutions),
             'controls': ControlsTab(self.game, self.settings_frame),
@@ -342,12 +316,10 @@ class MainMenu:
             'postprocess': PostProcessTab(self.game, self.settings_frame, self.bg_filters)
         }
         
-        # Скрываем все вкладки кроме первой
         for key, tab in self.tabs.items():
             tab.hide()
         self.tabs['graphics'].show()
         
-        # Создаем кнопки категорий
         self.tab_buttons = []
         category_data = [
             ('Graphics', 'graphics'),
@@ -379,10 +351,8 @@ class MainMenu:
             )
             self.tab_buttons.append(button)
         
-        # Активируем первую категорию
         self.on_tab_changed('graphics')
         
-        # Кнопка Back
         self.back_button = DirectButton(
             text="Back",
             pos=(0, 0, -0.82),
@@ -410,18 +380,15 @@ class MainMenu:
             ('Post-Processing', 'postprocess')
         ]
         
-        # Обновляем цвета кнопок
         for i, button in enumerate(self.tab_buttons):
             if i < len(category_data) and category_data[i][1] == tab_name:
                 button['frameColor'] = (0.2, 0.4, 0.9, 0.9)
             else:
                 button['frameColor'] = (0.15, 0.15, 0.2, 0.9)
         
-        # Скрываем все вкладки
         for tab in self.tabs.values():
             tab.hide()
         
-        # Показываем выбранную вкладку
         if tab_name in self.tabs:
             self.tabs[tab_name].show()
     
@@ -558,7 +525,6 @@ class MainMenu:
             self.title_animation.pause()
             self.frame.destroy()
         
-        # Очищаем вкладки
         for tab in self.tabs.values():
             tab.cleanup()
 

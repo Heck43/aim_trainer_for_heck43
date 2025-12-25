@@ -336,13 +336,11 @@ class SplashScreen:
             if not hasattr(self.game, 'sound_cache'):
                 self.game.sound_cache = {}
             
-            # Звуки оружия
+            # Звуки оружия (убрали ui_click и ui_hover так как файлы отсутствуют)
             weapon_sounds = [
                 "sounds/pistol_shot.wav",
                 "sounds/rifle_shot.wav", 
-                "sounds/sniper_shot.wav",
-                "sounds/ui_click.wav",
-                "sounds/ui_hover.wav"
+                "sounds/sniper_shot.wav"
             ]
             
             for sound_path in weapon_sounds:
@@ -376,13 +374,22 @@ class SplashScreen:
         """Подготовка меню - создаем его здесь!"""
         try:
             print("🎨 Создаем главное меню...")
+            # #region agent log
+            import json, time as _log_time; _log_file = open(r'c:\Users\heck43\Documents\GitHub\aim_trainer_for_heck43\.cursor\debug.log', 'a', encoding='utf-8'); _log_file.write(json.dumps({"sessionId":"debug-session","runId":"initial","hypothesisId":"D","location":"splash_screen.py:378","message":"prepare_menu called","data":{"menu_is_none":self.game.menu is None},"timestamp":int(_log_time.time()*1000)})+'\n'); _log_file.close()
+            # #endregion
             from menu_system.main_menu import MainMenu
             
             # Создаем меню заранее
             if self.game.menu is None:
                 self.game.menu = MainMenu(self.game)
+                # #region agent log
+                _log_file = open(r'c:\Users\heck43\Documents\GitHub\aim_trainer_for_heck43\.cursor\debug.log', 'a', encoding='utf-8'); _log_file.write(json.dumps({"sessionId":"debug-session","runId":"initial","hypothesisId":"D","location":"splash_screen.py:385","message":"menu created successfully","data":{},"timestamp":int(_log_time.time()*1000)})+'\n'); _log_file.close()
+                # #endregion
                 print("✅ Главное меню создано!")
         except Exception as e:
+            # #region agent log
+            _log_file = open(r'c:\Users\heck43\Documents\GitHub\aim_trainer_for_heck43\.cursor\debug.log', 'a', encoding='utf-8'); _log_file.write(json.dumps({"sessionId":"debug-session","runId":"initial","hypothesisId":"D","location":"splash_screen.py:390","message":"menu creation failed","data":{"error":str(e)},"timestamp":int(_log_time.time()*1000)})+'\n'); _log_file.close()
+            # #endregion
             print(f"⚠️ Ошибка создания меню: {e}")
 
     def finish_loading(self):

@@ -13,7 +13,6 @@ class PauseMenu:
         
     def create_menu(self):
         """Создает меню паузы"""
-        # Затемненный фон
         self.dark_bg = DirectFrame(
             frameColor=(0.05, 0.05, 0.05, 0.85),
             frameSize=(-2, 2, -2, 2),
@@ -22,7 +21,6 @@ class PauseMenu:
         )
         self.dark_bg.hide()
         
-        # Основной фрейм меню паузы
         self.frame = DirectFrame(
             frameColor=(0.08, 0.08, 0.12, 0.98),
             frameSize=(-0.5, 0.5, -0.4, 0.4),
@@ -32,7 +30,6 @@ class PauseMenu:
         )
         self.frame.hide()
         
-        # Декоративные линии
         self.top_line = DirectFrame(
             frameColor=(0.3, 0.5, 1, 0.8),
             frameSize=(-0.45, 0.45, -0.002, 0.002),
@@ -49,7 +46,6 @@ class PauseMenu:
             parent=self.frame
         )
         
-        # Заголовок "PAUSED"
         self.title = DirectLabel(
             text="PAUSED",
             scale=0.1,
@@ -62,7 +58,6 @@ class PauseMenu:
             frameColor=(0, 0, 0, 0)
         )
         
-        # Стиль кнопок
         button_style = {
             'relief': DGG.FLAT,
             'borderWidth': (0, 0),
@@ -72,7 +67,6 @@ class PauseMenu:
             'pressEffect': 0
         }
         
-        # Кнопка Resume
         self.resume_button = DirectButton(
             text="RESUME",
             command=self.hide,
@@ -83,7 +77,6 @@ class PauseMenu:
         )
         self.buttons.append(self.resume_button)
         
-        # Кнопка Settings
         self.settings_button = DirectButton(
             text="SETTINGS",
             command=self.show_settings,
@@ -94,7 +87,6 @@ class PauseMenu:
         )
         self.buttons.append(self.settings_button)
         
-        # Кнопка Main Menu
         self.menu_button = DirectButton(
             text="MAIN MENU",
             command=self.return_to_menu,
@@ -105,7 +97,6 @@ class PauseMenu:
         )
         self.buttons.append(self.menu_button)
         
-        # Добавляем эффекты при наведении
         for button in self.buttons:
             button.bind(DGG.ENTER, self.button_hover_start, [button])
             button.bind(DGG.EXIT, self.button_hover_end, [button])
@@ -117,7 +108,6 @@ class PauseMenu:
             LerpScaleInterval(button, 0.2, 1.08, blendType='easeOut')
         ).start()
         
-        # Меняем цвет
         if button == self.resume_button:
             button['frameColor'] = (0.3, 0.5, 1, 1)
         else:
@@ -130,7 +120,6 @@ class PauseMenu:
             LerpScaleInterval(button, 0.2, 1.0, blendType='easeOut')
         ).start()
         
-        # Возвращаем оригинальный цвет
         if button == self.resume_button:
             button['frameColor'] = (0.2, 0.4, 0.9, 0.9)
         else:
@@ -142,13 +131,11 @@ class PauseMenu:
         self.dark_bg.show()
         self.frame.show()
         
-        # Показываем курсор
         props = WindowProperties()
         props.setCursorHidden(False)
         props.setMouseMode(WindowProperties.M_absolute)
         self.game.win.requestProperties(props)
         
-        # Анимация появления
         self.frame.setColorScale(1, 1, 1, 0)
         self.dark_bg.setColorScale(1, 1, 1, 0)
         Parallel(
@@ -160,7 +147,6 @@ class PauseMenu:
         """Скрывает меню паузы"""
         self.is_paused = False
         
-        # Анимация исчезновения
         hide_sequence = Sequence(
             Parallel(
                 LerpColorScaleInterval(self.frame, 0.2, (1, 1, 1, 0)),
@@ -181,11 +167,9 @@ class PauseMenu:
     
     def show_settings(self):
         """Открывает настройки из паузы"""
-        # Временно скрываем меню паузы
         self.frame.hide()
         self.dark_bg.hide()
         
-        # Показываем настройки главного меню
         if hasattr(self.game, 'menu') and self.game.menu:
             self.game.menu.settings_frame.show()
             self.game.menu.settings_visible = True

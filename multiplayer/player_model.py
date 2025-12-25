@@ -33,6 +33,9 @@ class RemotePlayerModel:
     ]
 
     color_index = 0
+    
+    # Кэш для моделей (общий для всех экземпляров)
+    _model_cache = {}
 
     def __init__(self, game, player_id: str, player_name: str):
         self.game = game
@@ -189,11 +192,29 @@ class RemotePlayerModel:
         self.name_np.setBillboardPointEye()  # Всегда смотрит на камеру
 
     def _load_any_builtin(self, names: list[str]) -> NodePath | None:
+        """Загружает модель из списка с кэшированием"""
+        # Проверяем кэш
+        for name in names:
+            if name in RemotePlayerModel._model_cache:
+                cached = RemotePlayerModel._model_cache[name]
+                if cached and not cached.isEmpty():
+                    # Возвращаем копию модели
+                    return cached.copyTo(NodePath())
+        
+        # Если не в кэше, пробуем загрузить
         for name in names:
             try:
-                np = self.game.loader.loadModel(name)
+                # Используем safe_load_model если доступен
+                if hasattr(self.game, 'safe_load_model'):
+                    np = self.game.safe_load_model(name)
+                else:
+                    np = self.game.loader.loadModel(name)
+                
                 if np and not np.isEmpty():
-                    return np
+                    # Сохраняем в кэш
+                    RemotePlayerModel._model_cache[name] = np
+                    # Возвращаем копию
+                    return np.copyTo(NodePath())
             except Exception:
                 continue
         return None
@@ -273,7 +294,7 @@ class RemotePlayerModel:
         return angle
     
     def update(self, player_data: dict, dt: float):
-        """Обновляет состояние модели"""
+        """Обновляет состояние модели (оптимизированная версия)"""
         import time
         current_time = time.time()
         
@@ -288,10 +309,10 @@ class RemotePlayerModel:
         # Нормализуем целевой heading сразу
         new_target_heading = self._normalize_angle(new_target_heading)
         
-        # Вычисляем скорость движения (для предсказания)
+        # Вычисляем скорость движения (для предсказания) - только если прошло достаточно времени
         if self.last_update_time > 0:
             time_since_last = current_time - self.last_update_time
-            if time_since_last > 0.001:  # Избегаем деления на ноль
+            if time_since_last > 0.001 and time_since_last < 1.0:  # Избегаем деления на ноль и больших задержек
                 pos_delta = new_target_pos - self.last_target_pos
                 self.velocity = Vec3(
                     pos_delta.getX() / time_since_last,
@@ -303,6 +324,8 @@ class RemotePlayerModel:
                 if self.velocity.length() > max_speed:
                     self.velocity.normalize()
                     self.velocity *= max_speed
+            else:
+                self.velocity = Vec3(0, 0, 0)
         
         self.last_target_pos = new_target_pos
         self.last_update_time = current_time
@@ -310,7 +333,7 @@ class RemotePlayerModel:
         # Защита от больших скачков позиции (возможно потеря пакетов или телепорт)
         pos_diff = (new_target_pos - self.current_pos).length()
         if pos_diff > 10.0:  # Если скачок больше 10 единиц - это явно ошибка
-            print(f"[PlayerModel] Большой скачок позиции для {self.player_name}: {pos_diff:.2f}, телепортируем")
+            # Убираем print для уменьшения лагов
             self.current_pos = new_target_pos
             self.velocity = Vec3(0, 0, 0)  # Сбрасываем скорость
         else:
@@ -319,75 +342,51 @@ class RemotePlayerModel:
         self.target_heading = new_target_heading
         self.target_pitch = new_target_pitch
 
-        # Быстрая интерполяция позиции (компенсация задержки)
-        # Используем линейную интерполяцию с очень высокой скоростью
-        lerp_speed = 40.0  # Очень высокая скорость интерполяции
-        lerp_factor = min(lerp_speed * dt, 1.0)  # Линейная интерполяция
-
-        # Позиция с легким предсказанием (extrapolation)
-        # Предсказываем позицию на основе скорости для компенсации задержки
-        predicted_pos = self.target_pos
-        if hasattr(self, 'velocity') and self.velocity.length() > 0.1:  # Если есть движение
-            # Предсказываем на очень небольшое время вперед (компенсация пинга)
-            prediction_time = 0.02  # Уменьшили до 20ms предсказания
-            predicted_pos = self.target_pos + self.velocity * prediction_time
-        
-        diff = predicted_pos - self.current_pos
+        # Оптимизированная интерполяция позиции
+        lerp_speed = 25.0  # Уменьшили скорость интерполяции для плавности
+        diff = self.target_pos - self.current_pos
         distance = diff.length()
         
-        # Если расстояние большое - используем более агрессивную интерполяцию
-        if distance > 0.5:
-            # Для больших расстояний - быстрее догоняем
-            lerp_factor = min(lerp_speed * dt * 1.5, 1.0)
+        # Упрощенная интерполяция
+        if distance > 0.1:
+            lerp_factor = min(lerp_speed * dt, 0.8)  # Ограничиваем максимальный шаг
+            self.current_pos += diff * lerp_factor
         elif distance > 0.01:
-            # Для малых расстояний - обычная интерполяция
             lerp_factor = min(lerp_speed * dt, 1.0)
-        else:
-            # Если очень близко - сразу устанавливаем
-            lerp_factor = 1.0
-        
-        if distance > 0.01:
             self.current_pos += diff * lerp_factor
         else:
-            self.current_pos = predicted_pos
+            # Если очень близко - сразу устанавливаем
+            self.current_pos = self.target_pos
 
-        # Нормализуем текущий heading перед вычислением разницы
+        # Упрощенная интерполяция поворота
         self.current_heading = self._normalize_angle(self.current_heading)
+        heading_diff = self._normalize_angle(self.target_heading - self.current_heading)
         
-        # Поворот (heading) - используем более быструю интерполяцию
-        heading_lerp_speed = 30.0
-        heading_lerp_factor = min(heading_lerp_speed * dt, 1.0)
-        
-        heading_diff = self.target_heading - self.current_heading
-        # Нормализуем разницу углов
-        heading_diff = self._normalize_angle(heading_diff)
-
-        if abs(heading_diff) > 0.1:  # Уменьшили порог для более быстрого поворота
+        if abs(heading_diff) > 1.0:  # Увеличили порог для уменьшения вычислений
+            heading_lerp_speed = 20.0
+            heading_lerp_factor = min(heading_lerp_speed * dt, 0.8)
             self.current_heading += heading_diff * heading_lerp_factor
-            # Нормализуем после изменения
             self.current_heading = self._normalize_angle(self.current_heading)
         else:
             self.current_heading = self.target_heading
 
-        # Pitch - тоже быстрее
-        pitch_lerp_speed = 30.0
-        pitch_lerp_factor = min(pitch_lerp_speed * dt, 1.0)
-        
+        # Упрощенная интерполяция pitch
         pitch_diff = self.target_pitch - self.current_pitch
-        if abs(pitch_diff) > 0.1:  # Уменьшили порог
+        if abs(pitch_diff) > 1.0:  # Увеличили порог
+            pitch_lerp_speed = 20.0
+            pitch_lerp_factor = min(pitch_lerp_speed * dt, 0.8)
             self.current_pitch += pitch_diff * pitch_lerp_factor
         else:
             self.current_pitch = self.target_pitch
 
-        # Применяем к модели
-        self.model.setPos(self.current_pos)
-        # Добавляем +180 чтобы модель смотрела в правильную сторону
-        # Нормализуем результат
-        final_heading = self._normalize_angle(self.current_heading + 180)
-        self.model.setH(final_heading)
-        self.weapon_pivot.setP(-self.current_pitch)  # Pitch для оружия
+        # Применяем к модели (только если изменилось)
+        if distance > 0.001 or abs(heading_diff) > 0.1 or abs(pitch_diff) > 0.1:
+            self.model.setPos(self.current_pos)
+            final_heading = self._normalize_angle(self.current_heading + 180)
+            self.model.setH(final_heading)
+            self.weapon_pivot.setP(-self.current_pitch)
 
-        # Обновляем оружие если изменилось
+        # Обновляем оружие если изменилось (только при изменении)
         new_weapon = player_data.get("weapon", "pistol")
         if new_weapon != self.weapon:
             self.weapon = new_weapon
@@ -399,9 +398,11 @@ class RemotePlayerModel:
             self.show_muzzle_flash()
         self.shooting = new_shooting
 
-        # Обновляем счет
-        self.score = player_data.get("score", 0)
-        self.name_text.setText(f"{self.player_name}\n{self.score}")
+        # Обновляем счет (только если изменился)
+        new_score = player_data.get("score", 0)
+        if new_score != self.score:
+            self.score = new_score
+            self.name_text.setText(f"{self.player_name}\n{self.score}")
 
     def show_muzzle_flash(self):
         """Показывает вспышку выстрела"""
