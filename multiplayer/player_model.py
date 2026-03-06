@@ -36,6 +36,7 @@ class RemotePlayerModel:
     
     # Кэш для моделей (общий для всех экземпляров)
     _model_cache = {}
+    _main_model_cache_key = "__remote_player_main_model__"
 
     def __init__(self, game, player_id: str, player_name: str):
         self.game = game
@@ -78,6 +79,53 @@ class RemotePlayerModel:
         # Создаем визуал + оружие + имя
         self.create_model()
 
+    @staticmethod
+    def _get_project_root_static() -> str:
+        if getattr(sys, "frozen", False):
+            return os.path.abspath(getattr(sys, "_MEIPASS", os.path.dirname(sys.executable)))
+
+        here = os.path.abspath(os.path.dirname(__file__))
+        if os.path.isdir(os.path.join(here, "model_textures")):
+            return here
+
+        parent = os.path.abspath(os.path.join(here, ".."))
+        return parent
+
+    @classmethod
+    def _collect_model_candidates(cls) -> list[str]:
+        base_path = cls._get_project_root_static()
+        model_dir = os.path.join(base_path, "model_textures")
+        candidates = [
+            os.path.join(model_dir, "untitled.bam"),
+            os.path.join(model_dir, "untitled.egg"),
+            os.path.join(model_dir, "untitled.gltf"),
+            os.path.join(model_dir, "untitled.glb"),
+        ]
+        candidates += sorted(glob.glob(os.path.join(model_dir, "*.bam")))
+        return candidates
+
+    @classmethod
+    def preload_main_model(cls, game) -> bool:
+        """Preloads the single multiplayer player model into class cache."""
+        cached = cls._model_cache.get(cls._main_model_cache_key)
+        if cached and not cached.isEmpty():
+            return True
+
+        for path in cls._collect_model_candidates():
+            if not path or not os.path.exists(path):
+                continue
+            try:
+                np = game.loader.loadModel(Filename.fromOsSpecific(path))
+                if np and not np.isEmpty():
+                    cls._model_cache[cls._main_model_cache_key] = np
+                    print(f"[PlayerModel] Preloaded main MP model from {path}")
+                    return True
+            except Exception as e:
+                print(f"[PlayerModel] Failed to preload model {path}: {e}")
+
+        print("[PlayerModel] MP model preload skipped: no valid model file found")
+        return False
+
     def _get_project_root(self) -> str:
         # Для запуска из исходников — обычно корень = папка, где лежит этот файл.
         # Если структура другая — попробуем родителя.
@@ -94,6 +142,15 @@ class RemotePlayerModel:
 
     def _load_player_model(self) -> NodePath | None:
         """Пытается загрузить модель из model_textures. Возвращает NodePath или None."""
+        cached_main = RemotePlayerModel._model_cache.get(RemotePlayerModel._main_model_cache_key)
+        if cached_main and not cached_main.isEmpty():
+            return cached_main.copyTo(NodePath())
+
+        if RemotePlayerModel.preload_main_model(self.game):
+            cached_main = RemotePlayerModel._model_cache.get(RemotePlayerModel._main_model_cache_key)
+            if cached_main and not cached_main.isEmpty():
+                return cached_main.copyTo(NodePath())
+
         base_path = self._get_project_root()
 
         # Важно: добавим корень проекта в model-path, чтобы относительные пути работали стабильно.
@@ -394,8 +451,6 @@ class RemotePlayerModel:
 
         # Эффект стрельбы
         new_shooting = player_data.get("shooting", False)
-        if new_shooting and not self.shooting:
-            self.show_muzzle_flash()
         self.shooting = new_shooting
 
         # Обновляем счет (только если изменился)
@@ -405,11 +460,14 @@ class RemotePlayerModel:
             self.name_text.setText(f"{self.player_name}\n{self.score}")
 
     def show_muzzle_flash(self):
-        """Показывает вспышку выстрела"""
-        pass
+        """Legacy hook; remote tracers are drawn from authoritative shot_result."""
+        return
 
     def destroy(self):
         """Удаляет модель"""
         if self.model:
             self.model.removeNode()
             self.model = None
+
+
+

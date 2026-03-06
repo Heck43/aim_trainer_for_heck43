@@ -81,8 +81,7 @@ class Target:
         Target.category_loaded = True
         print(f"✅ Предзагружено {len(Target.texture_cache)} текстур для категории '{category}'")
 
-    @staticmethod
-    def load_texture(texture_path):
+    def load_texture(self, texture_path):
         """Загружает текстуру с использованием кэша"""
         normalized_path = texture_path.replace('\\', '/')
         
@@ -101,6 +100,9 @@ class Target:
     def __init__(self, game, pos=None, pooled=False):
         self.game = game
         self.position = pos if pos else Point3(0, 0, 0)
+        self.network_id = None
+        self.network_variant = "default"
+        self.network_respawn_at = 0.0
         self.max_hp = 100
         self.current_hp = self.max_hp
         self.is_active = True
@@ -227,6 +229,38 @@ class Target:
             if np.node().isOfType(CollisionNode.getClassType()):
                 np.node().setIntoCollideMask(BitMask32.allOff())
     
+    def set_alive(self, alive: bool):
+        """Sets visual and collision state without gameplay-side scoring."""
+        if alive:
+            if not self.is_active:
+                self.is_active = True
+                self.current_hp = self.max_hp
+                if hasattr(self, 'model'):
+                    self.model.show()
+                for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
+                    if np.node().isOfType(CollisionNode.getClassType()):
+                        np.node().setIntoCollideMask(BitMask32.bit(1))
+                self.update_visibility()
+        else:
+            if self.is_active:
+                self.is_active = False
+                if hasattr(self, 'model'):
+                    self.model.hide()
+                for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
+                    if np.node().isOfType(CollisionNode.getClassType()):
+                        np.node().setIntoCollideMask(BitMask32.allOff())
+
+    def set_network_state(self, pos, alive: bool, variant="default", respawn_at=0.0):
+        """Applies authoritative multiplayer target state."""
+        self.network_variant = variant or "default"
+        self.network_respawn_at = float(respawn_at or 0.0)
+        self.position = Point3(float(pos[0]), float(pos[1]), float(pos[2]))
+        if hasattr(self, 'model'):
+            self.model.setPos(self.position)
+            self.model.lookAt(0, 0, 0)
+            self.model.setH(self.model.getH() + 180)
+        self.set_alive(bool(alive))
+
     def reset_position(self):
         """Устанавливает новую случайную позицию"""
         min_distance = 15

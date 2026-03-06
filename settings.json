@@ -5,7 +5,7 @@
     "show_score": true,
     "show_timer": true,
     "volume": 100,
-    "show_target_images": 0,
+    "show_target_images": 1,
     "damage_numbers": true,
     "killfeed": true,
     "show_fps": true,

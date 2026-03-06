@@ -82,7 +82,7 @@ from panda3d.core import TextNode, TextureStage, Texture, TransparencyAttrib
 from panda3d.core import AmbientLight, DirectionalLight, LineSegs, ClockObject
 from panda3d.core import CardMaker, loadPrcFileData, getModelPath
 from direct.gui.OnscreenText import OnscreenText
-from direct.gui.DirectGui import DirectFrame
+from direct.gui.DirectGui import DirectFrame, DirectEntry
 from direct.task import Task
 from direct.interval.IntervalGlobal import Sequence, Parallel, LerpColorScaleInterval, LerpColorInterval, LerpPosInterval, LerpHprInterval, Wait, Func
 from direct.filter.CommonFilters import CommonFilters
@@ -305,6 +305,7 @@ class Game(ShowBase):
         self.lobby_menu = None
         self.current_weapon = "pistol"
         self.is_shooting = False
+        self.shoot_state_frames = 0
         
         self.splash = SplashScreen(self)
         self.splash.start()
@@ -335,6 +336,46 @@ class Game(ShowBase):
             shadow=(0, 0, 0, 1)
         )
         self.timer_text.hide()
+
+        self.is_chat_active = False
+        self.chat_messages = []
+        self.chat_message_lifetime = 10.0
+        self.chat_last_toggle_time = 0.0
+        self.chat_text = OnscreenText(
+            text="",
+            pos=(-1.28, -0.80),
+            fg=(1, 1, 1, 1),
+            align=TextNode.ALeft,
+            scale=0.04,
+            mayChange=True,
+        )
+        self.chat_text.hide()
+
+        self.chat_entry = DirectEntry(
+            text="",
+            scale=0.05,
+            pos=(-1.28, 0, -0.93),
+            frameColor=(0, 0, 0, 0.7),
+            text_fg=(1, 1, 1, 1),
+            initialText="",
+            numLines=1,
+            width=28,
+            focus=0,
+            command=self.submit_chat_message,
+            suppressKeys=False,
+        )
+        self.chat_entry.hide()
+
+        self.show_scoreboard = False
+        self.scoreboard_text = OnscreenText(
+            text="",
+            pos=(1.25, 0.86),
+            fg=(1, 1, 1, 1),
+            align=TextNode.ARight,
+            scale=0.05,
+            mayChange=True,
+        )
+        self.scoreboard_text.hide()
         
         properties = WindowProperties()
         properties.setTitle("Aim Trainer")
@@ -449,6 +490,7 @@ class Game(ShowBase):
         self.shoot_cooldown = self.weapons[self.current_weapon]["cooldown"]
         self.recoil_time = 0.05
         self.is_shooting = False
+        self.shoot_state_frames = 0
         self.shoot_time = 0
         self.original_weapon_pos = None
         self.original_weapon_hpr = None
@@ -472,6 +514,8 @@ class Game(ShowBase):
 
 
         self.targets = []
+        self.mp_targets_by_id = {}
+        self.mp_targets_revision = -1
         
         self.crosshair = OnscreenText(
             text="+",
@@ -515,6 +559,9 @@ class Game(ShowBase):
         self.accept("4", self.switch_weapon, ["dual_revolvers"])
         self.accept("wheel_up", self.cycle_weapon, [1])
         self.accept("wheel_down", self.cycle_weapon, [-1])
+        self.accept("enter", self.toggle_chat_input)
+        self.accept("tab", self.on_tab_down)
+        self.accept("tab-up", self.on_tab_up)
         
         self.keyMap = {
             "w": False,
@@ -676,6 +723,11 @@ class Game(ShowBase):
         if self.target_pool:
             self.target_pool.release_all()
         self.targets.clear()
+        self.mp_targets_by_id.clear()
+        self.mp_targets_revision = -1
+
+        if self.is_multiplayer:
+            return
 
         target_count = self.settings.get('target_count', 10)
         
@@ -882,13 +934,18 @@ class Game(ShowBase):
         recoil_sequence.start()
 
     def updateKeyMap(self, key, value):
+        if self.is_chat_active:
+            self.keyMap[key] = False
+            return
         self.keyMap[key] = value
 
     def start_jump(self):
         """Начинает прыжок и обновляет комбо прыжков"""
         if self.is_splash_screen_active:  # Check if splash screen is active
             return  # Ignore all actions during splash screen
-        
+        if self.is_chat_active:
+            return
+
         if not self.is_jumping:
             # Увеличиваем множитель комбо при последовательных прыжках только если распрыжка включена
             current_time = time.time()
@@ -943,6 +1000,8 @@ class Game(ShowBase):
     def shoot(self):
         if self.is_splash_screen_active:  # Check if splash screen is active
             return  # Ignore all actions during splash screen
+        if self.is_chat_active:
+            return
         
         if not self.can_shoot:
             return
@@ -1085,7 +1144,10 @@ class Game(ShowBase):
             self.animate_weapon_recoil()
         
         self.last_shot_time = globalClock.getFrameTime()
-        
+        # Emit a short multiplayer "shooting" pulse so remote clients can render shot effects.
+        self.shoot_state_frames = 2
+        is_authoritative_mp = self.is_multiplayer and self.network and self.network.is_connected()
+
         self.cTrav.traverse(self.render)
         
         if self.current_weapon == "dual_revolvers":
@@ -1119,6 +1181,15 @@ class Game(ShowBase):
             spread_direction.normalize()
         else:
             spread_direction = direction
+
+        if is_authoritative_mp:
+            self.network.send_shot(
+                origin=self.camera.getPos(),
+                direction=spread_direction,
+                weapon=self.current_weapon,
+                camera_heading=self.camera_heading,
+                camera_pitch=self.camera_pitch
+            )
         
         max_distance = 1000
         
@@ -1147,8 +1218,8 @@ class Game(ShowBase):
                 
                 start_pos = self.camera.getPos() + self.camera.getMat().xformVec(local_pos)
                 self.create_bullet_trace(start_pos, hit_pos)
-                
-                self.handle_collision(entry)
+                if not is_authoritative_mp:
+                    self.handle_collision(entry)
             else:
                 if self.current_weapon == "dual_revolvers":
                     if self.active_revolver == "left":
@@ -1240,7 +1311,10 @@ class Game(ShowBase):
         """Переключает паузу в игре"""
         if self.is_splash_screen_active:
             return
-        
+        if self.is_chat_active:
+            self.close_chat_input()
+            return
+
         if not self.pause_menu:
             return
         
@@ -1252,11 +1326,23 @@ class Game(ShowBase):
     def return_to_menu(self):
         if self.is_splash_screen_active:
             return
+
+        if self.is_multiplayer or self.network:
+            self.cleanup_multiplayer()
             
         if hasattr(self, 'score_text'):
             self.score_text.hide()
         if hasattr(self, 'timer_text'):
             self.timer_text.hide()
+        if hasattr(self, 'chat_entry'):
+            self.chat_entry["focus"] = 0
+            self.chat_entry.hide()
+        if hasattr(self, 'chat_text'):
+            self.chat_text.hide()
+        if hasattr(self, 'scoreboard_text'):
+            self.scoreboard_text.hide()
+        self.is_chat_active = False
+        self.show_scoreboard = False
             
         self.taskMgr.remove("update")
         self.ignore("mouse1")
@@ -1336,14 +1422,17 @@ class Game(ShowBase):
         return task.cont
     
     def handle_collision(self, entry):
+        if self.is_multiplayer:
+            return
+
         hit_node = entry.getIntoNode()
         if not hit_node.getName().startswith('target_'):
             return
             
-        target = entry.getIntoNodePath().getParent()
-        while target.getName() != "target_root":
-            target = target.getParent()
-            if target is None:
+        target_np = entry.getIntoNodePath().getParent()
+        while target_np.getName() != "target_root":
+            target_np = target_np.getParent()
+            if target_np is None:
                 return
         
         damage = self.get_damage_for_part(hit_node.getName())
@@ -1375,10 +1464,21 @@ class Game(ShowBase):
         if self.settings.get('damage_numbers', True):
             self.spawn_damage_text(f"+{points}", hit_pos)
         
-        target.removeNode()
+        target_obj = None
+        for active_target in self.targets:
+            if hasattr(active_target, 'model') and active_target.model == target_np:
+                target_obj = active_target
+                break
+
+        if target_obj:
+            if target_obj in self.targets:
+                self.targets.remove(target_obj)
+            target_obj.destroy()
+        elif not target_np.isEmpty():
+            target_np.removeNode()
         
         delay = random.uniform(0.5, 2.0)
-        taskMgr.doMethodLater(delay, self.spawn_target, 'spawn_target')
+        self.taskMgr.doMethodLater(delay, self.spawn_target, f"spawn_target_{time.time_ns()}")
         
         if self.settings.get('killfeed', True):
             self.create_killfeed_message("Training Bot")
@@ -1441,11 +1541,107 @@ class Game(ShowBase):
             'remove_damage_text'
         )
 
-    def spawn_target(self, task):
+    def spawn_target(self, task=None):
+        if not self.target_pool:
+            return Task.done if task is not None else None
+
         target = self.target_pool.acquire()
-        self.targets.append(target)
+        if target not in self.targets:
+            self.targets.append(target)
         
-        return task.done
+        return Task.done if task is not None else None
+
+    def apply_targets_state(self, snapshot):
+        """Apply authoritative multiplayer targets snapshot."""
+        if not snapshot:
+            return
+
+        revision = int(snapshot.get("revision", -1))
+        if revision <= self.mp_targets_revision:
+            return
+        self.mp_targets_revision = revision
+
+        incoming = snapshot.get("targets", [])
+        incoming_ids = set()
+
+        for state in incoming:
+            target_id = state.get("id")
+            if not target_id:
+                continue
+            incoming_ids.add(target_id)
+            target_obj = self.mp_targets_by_id.get(target_id)
+            if target_obj is None:
+                target_obj = self.target_pool.acquire()
+                target_obj.network_id = target_id
+                self.mp_targets_by_id[target_id] = target_obj
+                if target_obj not in self.targets:
+                    self.targets.append(target_obj)
+
+            pos = state.get("pos", [0, 0, 1])
+            alive = bool(state.get("alive", True))
+            variant = state.get("variant", "default")
+            respawn_at = state.get("respawn_at", 0.0)
+            target_obj.set_network_state(pos, alive, variant, respawn_at)
+
+        if incoming:
+            server_variant = str(incoming[0].get("variant", "default")).lower()
+            if server_variant in ("nsfw", "sfw"):
+                desired_show_images = server_variant == "nsfw"
+                if self.settings.get("show_target_images", True) != desired_show_images:
+                    self.settings["show_target_images"] = desired_show_images
+                    if self.target_pool:
+                        self.target_pool.refresh_all_active()
+
+        for target_id in list(self.mp_targets_by_id.keys()):
+            if target_id in incoming_ids:
+                continue
+            target_obj = self.mp_targets_by_id.pop(target_id)
+            if target_obj in self.targets:
+                self.targets.remove(target_obj)
+            target_obj.network_id = None
+            target_obj.destroy()
+
+    def process_network_shot_results(self):
+        if not self.network:
+            return
+        shot_results = self.network.consume_shot_results()
+        if not shot_results:
+            return
+
+        local_player_id = self.network.player_id
+        for result in shot_results:
+            shooter_id = result.get("shooter_id")
+            hit_pos = result.get("hit_pos")
+            if shooter_id == local_player_id:
+                if not result.get("hit"):
+                    continue
+                self.score = int(result.get("new_score", self.score))
+                if hasattr(self, 'score_text') and self.show_score:
+                    self.score_text.setText(f"Score: {self.score}")
+                if hit_pos and self.settings.get('damage_numbers', True):
+                    points = int(result.get("score_delta", 0))
+                    self.spawn_damage_text(f"+{points}", Point3(hit_pos[0], hit_pos[1], hit_pos[2]))
+                self.activate_hit_effects()
+                self.hit_sound.play()
+                continue
+
+            # Visualize remote shots from authoritative server events.
+            origin = result.get("origin")
+            direction = result.get("dir")
+            if not origin or not direction or len(origin) != 3 or len(direction) != 3:
+                continue
+
+            start_pos = Point3(float(origin[0]), float(origin[1]), float(origin[2]))
+            dir_vec = Vec3(float(direction[0]), float(direction[1]), float(direction[2]))
+            if dir_vec.lengthSquared() <= 1e-6:
+                continue
+            dir_vec.normalize()
+
+            if hit_pos:
+                end_pos = Point3(hit_pos[0], hit_pos[1], hit_pos[2])
+            else:
+                end_pos = start_pos + (dir_vec * 60.0)
+            self.create_bullet_trace(start_pos, end_pos)
 
     def update_time_scale(self, task):
         if self.is_in_slow_motion:
@@ -1462,31 +1658,6 @@ class Game(ShowBase):
         self.target_time_scale = self.normal_time_scale
         self.is_in_slow_motion = False
         return task.done
-
-    def on_target_hit(self, target, hit_pos):
-        self.activate_hit_effects()
-        
-        self.hit_sound.play()
-        self.score += 10 * self.combo_multiplier
-        
-        current_time = time.time()
-        if current_time - self.last_hit_time < self.combo_window:
-            self.combo_multiplier += 0.5
-        else:
-            self.combo_multiplier = 1.0
-        self.last_hit_time = current_time
-        
-        if hasattr(self, 'score_text') and self.show_score:
-            self.score_text.setText(f"Score: {int(self.score)}")
-        
-        hit_pos = entry.getSurfacePoint(self.render)
-        
-        if self.settings.get('damage_numbers', True):
-            self.spawn_damage_text(f"+{int(10 * self.combo_multiplier)}", hit_pos)
-        
-        self.targets.remove(target)
-        target.cleanup()
-        self.spawn_target()
 
     def create_killfeed_message(self, target_name="Target"):
         """Создает новое сообщение в килфиде"""
@@ -1700,7 +1871,7 @@ class Game(ShowBase):
             
             self.camera.setZ(new_z)
             
-        if self.mouseWatcherNode.hasMouse():
+        if self.mouseWatcherNode.hasMouse() and not self.is_chat_active:
             mouse_x = self.mouseWatcherNode.getMouseX()
             mouse_y = self.mouseWatcherNode.getMouseY()
             
@@ -1739,10 +1910,33 @@ class Game(ShowBase):
                 self.shoot()
         
         self.update_killfeed_positions()
+        self.refresh_chat_display()
         
         self.update_aim(task)
         
         if self.is_multiplayer and self.network and self.network.is_connected():
+            snapshot = self.network.consume_latest_targets_snapshot()
+            if snapshot:
+                self.apply_targets_state(snapshot)
+            self.process_network_shot_results()
+            for chat in self.network.consume_chat_messages():
+                self.add_chat_line(chat.get("name", "Player"), chat.get("text", ""))
+
+            server_score = self.network.get_local_server_score()
+            if server_score != self.score:
+                self.score = server_score
+                self.update_score_display()
+
+            if self.show_scoreboard:
+                scoreboard = self.network.get_scoreboard()
+                lines = ["Players"]
+                for idx, p in enumerate(scoreboard, 1):
+                    pname = p.get("name", "Player")
+                    pscore = int(p.get("score", 0))
+                    lines.append(f"{idx}. {pname}: {pscore}")
+                self.scoreboard_text.setText("\n".join(lines))
+
+            self.is_shooting = self.shoot_state_frames > 0
             self.network.send_state(
                 pos=self.camera.getPos(),
                 heading=self.camera_heading,
@@ -1751,6 +1945,8 @@ class Game(ShowBase):
                 shooting=self.is_shooting,
                 score=self.score
             )
+            if self.shoot_state_frames > 0:
+                self.shoot_state_frames -= 1
             
             self.update_remote_players(dt)
         
@@ -2078,6 +2274,89 @@ class Game(ShowBase):
         elif self.music:
             self.music.stop()
 
+    def add_chat_line(self, name: str, text: str):
+        clean_name = (name or "Player").strip()[:24]
+        clean_text = (text or "").strip()[:180]
+        if not clean_text:
+            return
+        self.chat_messages.append({
+            "t": time.time(),
+            "line": f"{clean_name}: {clean_text}",
+        })
+        if len(self.chat_messages) > 30:
+            self.chat_messages = self.chat_messages[-30:]
+        self.refresh_chat_display()
+
+    def refresh_chat_display(self):
+        now = time.time()
+        if self.is_chat_active:
+            visible = self.chat_messages[-8:]
+        else:
+            self.chat_messages = [
+                m for m in self.chat_messages
+                if now - float(m.get("t", now)) <= self.chat_message_lifetime
+            ]
+            visible = self.chat_messages[-6:]
+
+        if not visible:
+            self.chat_text.setText("")
+            self.chat_text.hide()
+            return
+
+        lines = [m.get("line", "") for m in reversed(visible)]
+        self.chat_text.setText("\n".join(lines))
+        self.chat_text.show()
+
+    def toggle_chat_input(self):
+        now = time.time()
+        if now - self.chat_last_toggle_time < 0.2:
+            return
+        self.chat_last_toggle_time = now
+
+        if self.is_splash_screen_active:
+            return
+        if not (self.is_multiplayer and self.network and self.network.is_connected()):
+            return
+
+        if not self.is_chat_active:
+            self.is_chat_active = True
+            self.chat_entry.enterText("")
+            self.chat_entry.show()
+            self.chat_entry["focus"] = 1
+            self.mouse_pressed = False
+            for key in self.keyMap:
+                self.keyMap[key] = False
+            self.refresh_chat_display()
+        else:
+            self.close_chat_input()
+
+    def submit_chat_message(self, text):
+        if self.network and self.network.is_connected():
+            msg = (text or "").strip()
+            if msg:
+                self.network.send_chat(msg)
+        self.chat_entry.enterText("")
+        self.close_chat_input()
+
+    def close_chat_input(self):
+        self.chat_entry["focus"] = 0
+        self.chat_entry.hide()
+        self.is_chat_active = False
+        self.chat_last_toggle_time = time.time()
+        self.refresh_chat_display()
+
+    def on_tab_down(self):
+        if self.is_splash_screen_active:
+            return
+        if not (self.is_multiplayer and self.network and self.network.is_connected()):
+            return
+        self.show_scoreboard = True
+        self.scoreboard_text.show()
+
+    def on_tab_up(self):
+        self.show_scoreboard = False
+        self.scoreboard_text.hide()
+
     def cycle_weapon(self, direction):
         if self.is_splash_screen_active:
             return
@@ -2090,6 +2369,8 @@ class Game(ShowBase):
     def on_mouse_press(self):
         """Обработчик нажатия кнопки мыши"""
         if self.is_splash_screen_active:
+            return
+        if self.is_chat_active:
             return
         
         self.mouse_pressed = True
@@ -2313,8 +2594,7 @@ class Game(ShowBase):
     
     def back_from_multiplayer(self):
         """Возвращается из мультиплеера в главное меню"""
-        if self.network and self.network.is_connected():
-            self.network.disconnect()
+        self.cleanup_multiplayer()
         
         if self.menu:
             self.menu.show()
@@ -2355,13 +2635,41 @@ class Game(ShowBase):
     def cleanup_multiplayer(self):
         """Очищает ресурсы мультиплеера"""
         if self.network:
-            self.network.disconnect()
+            try:
+                self.network.disconnect()
+            except Exception:
+                pass
             self.network = None
         
         # Удаляем модели других игроков
-        for player_model in self.remote_players.values():
-            player_model.destroy()
+        for player_model in list(self.remote_players.values()):
+            try:
+                player_model.destroy()
+            except Exception:
+                pass
         self.remote_players.clear()
+        
+        for target_id in list(self.mp_targets_by_id.keys()):
+            target_obj = self.mp_targets_by_id.pop(target_id)
+            try:
+                if target_obj in self.targets:
+                    self.targets.remove(target_obj)
+                target_obj.network_id = None
+                target_obj.destroy()
+            except Exception:
+                pass
+        self.mp_targets_revision = -1
+        self.is_chat_active = False
+        self.show_scoreboard = False
+        self.chat_messages.clear()
+        if hasattr(self, 'chat_entry'):
+            self.chat_entry["focus"] = 0
+            self.chat_entry.hide()
+        if hasattr(self, 'chat_text'):
+            self.chat_text.setText("")
+            self.chat_text.hide()
+        if hasattr(self, 'scoreboard_text'):
+            self.scoreboard_text.hide()
         
         self.is_multiplayer = False
 
@@ -2369,3 +2677,4 @@ class Game(ShowBase):
 if __name__ == "__main__":
     game = Game()
     game.run()
+

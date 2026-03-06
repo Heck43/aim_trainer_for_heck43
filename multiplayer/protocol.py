@@ -14,6 +14,11 @@ MSG_GAME_START = "game_start"
 MSG_GAME_END = "game_end"
 MSG_PING = "ping"
 MSG_PONG = "pong"
+MSG_HEARTBEAT = "heartbeat"
+MSG_SHOT = "shot"
+MSG_SHOT_RESULT = "shot_result"
+MSG_TARGETS_STATE = "targets_state"
+MSG_CHAT = "chat"
 
 class Protocol:
     """Протокол сообщений"""
@@ -118,4 +123,72 @@ class Protocol:
             "type": MSG_PONG,
             "ping_timestamp": ping_timestamp,
             "timestamp": time.time()
+        }
+    @staticmethod
+    def create_heartbeat(player_id: str, name: str) -> dict:
+        """Creates a heartbeat message without gameplay state."""
+        return {
+            "type": MSG_HEARTBEAT,
+            "player_id": player_id,
+            "name": name,
+            "timestamp": time.time()
+        }
+
+    @staticmethod
+    def create_shot(player_id: str, shot_id: int, origin: tuple, direction: tuple,
+                    weapon: str, camera_heading: float, camera_pitch: float) -> dict:
+        """Creates a server-authoritative shot message."""
+        return {
+            "type": MSG_SHOT,
+            "player_id": player_id,
+            "shot_id": shot_id,
+            "timestamp": time.time(),
+            "origin": list(origin),
+            "dir": list(direction),
+            "weapon": weapon,
+            "camera_heading": camera_heading,
+            "camera_pitch": camera_pitch
+        }
+
+    @staticmethod
+    def create_shot_result(shot_id: int, shooter_id: str, hit: bool, target_id: str,
+                           part: str, damage: int, score_delta: int, new_score: int,
+                           hit_pos: tuple, server_time: float = None,
+                           origin: tuple = None, direction: tuple = None) -> dict:
+        """Creates authoritative shot resolution."""
+        return {
+            "type": MSG_SHOT_RESULT,
+            "shot_id": shot_id,
+            "shooter_id": shooter_id,
+            "hit": hit,
+            "target_id": target_id,
+            "part": part,
+            "damage": damage,
+            "score_delta": score_delta,
+            "new_score": new_score,
+            "hit_pos": list(hit_pos) if hit_pos is not None else None,
+            "origin": list(origin) if origin is not None else None,
+            "dir": list(direction) if direction is not None else None,
+            "server_time": server_time if server_time is not None else time.time()
+        }
+
+    @staticmethod
+    def create_targets_state(targets: list, revision: int, server_time: float = None) -> dict:
+        """Creates full snapshot of authoritative target state."""
+        return {
+            "type": MSG_TARGETS_STATE,
+            "targets": targets,
+            "revision": revision,
+            "server_time": server_time if server_time is not None else time.time()
+        }
+
+    @staticmethod
+    def create_chat_message(player_id: str, name: str, text: str, server_time: float = None) -> dict:
+        """Creates a multiplayer chat message."""
+        return {
+            "type": MSG_CHAT,
+            "player_id": player_id,
+            "name": name,
+            "text": text,
+            "server_time": server_time if server_time is not None else time.time()
         }
