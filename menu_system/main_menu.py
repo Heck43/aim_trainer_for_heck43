@@ -4,7 +4,6 @@
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel, DGG
 from panda3d.core import TextNode, WindowProperties, Vec3, Point3, NodePath
 from direct.interval.IntervalGlobal import Sequence, Parallel, LerpScaleInterval, LerpPosInterval, Wait, LerpColorScaleInterval, Func
-from direct.filter.CommonFilters import CommonFilters
 import random
 
 from .graphics_tab import GraphicsTab
@@ -12,7 +11,6 @@ from .controls_tab import ControlsTab
 from .weapon_tab import WeaponTab
 from .game_tab import GameTab
 from .audio_tab import AudioTab
-from .postprocess_tab import PostProcessTab
 
 class MainMenu:
     def __init__(self, game):
@@ -149,9 +147,6 @@ class MainMenu:
             
             self.background_objects.append(obj)
         
-        self.bg_filters = CommonFilters(self.game.win, self.game.cam)
-        self.bg_filters.setBloom(blend=(0.3, 0.4, 0.5, 0.0), desat=-0.5, intensity=1.0, size="small")
-    
     def create_menu(self):
         """Создает главное меню"""
         self.dark_bg = DirectFrame(
@@ -313,7 +308,6 @@ class MainMenu:
             'weapon': WeaponTab(self.game, self.settings_frame),
             'game': GameTab(self.game, self.settings_frame),
             'audio': AudioTab(self.game, self.settings_frame),
-            'postprocess': PostProcessTab(self.game, self.settings_frame, self.bg_filters)
         }
         
         for key, tab in self.tabs.items():
@@ -327,7 +321,6 @@ class MainMenu:
             ('Weapon', 'weapon'),
             ('Game', 'game'),
             ('Audio', 'audio'),
-            ('Post-Processing', 'postprocess')
         ]
         
         category_button_style = {
@@ -377,7 +370,6 @@ class MainMenu:
             ('Weapon', 'weapon'),
             ('Game', 'game'),
             ('Audio', 'audio'),
-            ('Post-Processing', 'postprocess')
         ]
         
         for i, button in enumerate(self.tab_buttons):
@@ -517,9 +509,6 @@ class MainMenu:
         
         if hasattr(self, 'bg_root'):
             self.bg_root.removeNode()
-        
-        if hasattr(self, 'bg_filters'):
-            self.bg_filters.delBloom()
         
         if self.frame:
             self.title_animation.pause()

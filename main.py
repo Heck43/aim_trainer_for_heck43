@@ -1,5 +1,6 @@
 import sys
 import os
+import sys
 
 # Настройка PATH для DLL перед импортом Panda3D (для PyInstaller)
 if hasattr(sys, 'frozen'):
@@ -74,18 +75,155 @@ if hasattr(sys, 'frozen'):
         if path and os.path.exists(path):
             print(f"  - {path}")
 
+try:
+    from imgui_bundle import imgui
+    from imgui_bundle import ImVec2
+    import p3dimgui
+    import p3dimgui.backend as p3dimgui_backend
+    import p3dimgui.shaders as p3dimgui_shaders
+    p3dimgui_backend.VERT_SHADER = p3dimgui_shaders.VERT_SHADER
+    p3dimgui_backend.FRAG_SHADER = p3dimgui_shaders.FRAG_SHADER
+
+    def _patch_p3dimgui_backend():
+        if getattr(p3dimgui_backend, "_aim_trainer_mouse_patch", False):
+            return
+
+        def _patched_window_event(self, _=None):
+            if not self.window:
+                return
+            win_x = max(1, int(self.window.getXSize()))
+            win_y = max(1, int(self.window.getYSize()))
+            fb_x = max(1, int(getattr(self.window, "getFbXSize", lambda: win_x)()))
+            fb_y = max(1, int(getattr(self.window, "getFbYSize", lambda: win_y)()))
+            self._aim_trainer_window_size = (win_x, win_y)
+            self._aim_trainer_framebuffer_size = (fb_x, fb_y)
+            self.io.display_size = (win_x, win_y)
+            self.io.display_framebuffer_scale = (fb_x / win_x, fb_y / win_y)
+
+        def _patched_new_frame(self, task):
+            if self.root.isHidden():
+                return task.cont
+
+            self.io.delta_time = base.clock.getDt()
+            self._ImGuiBackend__windowEvent()
+            win_x, win_y = getattr(self, "_aim_trainer_window_size", (1, 1))
+
+            if getattr(base, "mouseWatcherNode", None) and base.mouseWatcherNode.hasMouse():
+                mouse_x = (base.mouseWatcherNode.getMouseX() + 1.0) * 0.5 * win_x
+                mouse_y = (1.0 - ((base.mouseWatcherNode.getMouseY() + 1.0) * 0.5)) * win_y
+                self.io.mouse_pos = (mouse_x, mouse_y)
+            elif self.window:
+                mouse = self.window.getPointer(0)
+                if mouse.getInWindow():
+                    self.io.mouse_pos = (mouse.getX(), mouse.getY())
+                else:
+                    self.io.mouse_pos = (-imgui.FLT_MAX, -imgui.FLT_MAX)
+            else:
+                self.io.mouse_pos = (-imgui.FLT_MAX, -imgui.FLT_MAX)
+
+            imgui.new_frame()
+            base.messenger.send("imgui-new-frame")
+            return task.cont
+
+        def _patched_render_frame(self, task):
+            if self.root.isHidden():
+                return task.cont
+
+            imgui.render()
+            draw_data = imgui.get_draw_data()
+            clip_off = draw_data.display_pos
+            clip_scale = draw_data.framebuffer_scale
+            fb_width = int(draw_data.display_size.x * clip_scale.x)
+            fb_height = int(draw_data.display_size.y * clip_scale.y)
+            if fb_width <= 0 or fb_height <= 0:
+                return task.cont
+
+            self._ImGuiBackend__updateTextures()
+
+            for child in self.root.children:
+                child.detachNode()
+
+            for i, cmd_list in enumerate(draw_data.cmd_lists):
+                if i > len(self.geomData) - 1:
+                    self.geomData.append(
+                        p3dimgui_backend.GeomList(
+                            p3dimgui_backend.GeomVertexData(
+                                f"imgui-vertex-{i}",
+                                self.vformat,
+                                p3dimgui_backend.Geom.UH_stream,
+                            )
+                        )
+                    )
+
+                geom_list = self.geomData[i]
+                vertex_handle = geom_list.vdata.modifyArrayHandle(0)
+                if vertex_handle.getNumRows() < cmd_list.vtx_buffer.size():
+                    vertex_handle.uncleanSetNumRows(cmd_list.vtx_buffer.size())
+                vertex_handle.setData(
+                    p3dimgui_backend.ctypes.string_at(
+                        cmd_list.vtx_buffer.data_address(),
+                        cmd_list.vtx_buffer.size() * imgui.VERTEX_SIZE,
+                    )
+                )
+
+                index_buffer = cmd_list.idx_buffer.data_address()
+                for k, draw_cmd in enumerate(cmd_list.cmd_buffer):
+                    if k > len(geom_list.nodepaths) - 1:
+                        geom_list.nodepaths.append(
+                            p3dimgui_backend.ImGuiBackend._ImGuiBackend__createGeomnode(geom_list.vdata)
+                        )
+
+                    np = geom_list.nodepaths[k]
+                    np.reparentTo(self.root)
+                    node = np.node()
+
+                    index_handle = node.modifyGeom(0).modifyPrimitive(0).modifyVertices(draw_cmd.elem_count).modifyHandle()
+                    if index_handle.getNumRows() < draw_cmd.elem_count:
+                        index_handle.uncleanSetNumRows(draw_cmd.elem_count)
+
+                    index_handle.setData(
+                        p3dimgui_backend.ctypes.string_at(
+                            index_buffer,
+                            draw_cmd.elem_count * imgui.INDEX_SIZE,
+                        )
+                    )
+                    index_buffer += draw_cmd.elem_count * imgui.INDEX_SIZE
+
+                    state = p3dimgui_backend.RenderState.makeEmpty()
+
+                    if draw_cmd.tex_ref.get_tex_id():
+                        texture = self.textures[draw_cmd.tex_ref.get_tex_id()]
+                        state = state.addAttrib(p3dimgui_backend.TextureAttrib.make(texture))
+
+                    node.setGeomState(0, state)
+
+            return task.cont
+
+        p3dimgui_backend.ImGuiBackend._ImGuiBackend__windowEvent = _patched_window_event
+        p3dimgui_backend.ImGuiBackend._ImGuiBackend__newFrame = _patched_new_frame
+        p3dimgui_backend.ImGuiBackend._ImGuiBackend__renderFrame = _patched_render_frame
+        p3dimgui_backend._aim_trainer_mouse_patch = True
+
+    _patch_p3dimgui_backend()
+    HAS_P3D_IMGUI = True
+except Exception:
+    p3dimgui = None
+    imgui = None
+    ImVec2 = None
+    HAS_P3D_IMGUI = False
+
 from direct.showbase.ShowBase import ShowBase
 from panda3d.core import Point3, Vec3, Vec4, Vec2, Point2, WindowProperties, MouseWatcher, NodePath
+from panda3d.core import Camera, PerspectiveLens
 from panda3d.core import CollisionTraverser, CollisionNode, CollisionHandlerQueue, CollisionHandlerPusher
 from panda3d.core import CollisionRay, CollisionSphere, CollisionBox, BitMask32
 from panda3d.core import TextNode, TextureStage, Texture, TransparencyAttrib
 from panda3d.core import AmbientLight, DirectionalLight, LineSegs, ClockObject
 from panda3d.core import CardMaker, loadPrcFileData, getModelPath
 from direct.gui.OnscreenText import OnscreenText
-from direct.gui.DirectGui import DirectFrame, DirectEntry
+from direct.gui.DirectGui import DirectFrame, DirectEntry, DirectButton, DirectCheckButton, DirectLabel, DirectSlider
 from direct.task import Task
 from direct.interval.IntervalGlobal import Sequence, Parallel, LerpColorScaleInterval, LerpColorInterval, LerpPosInterval, LerpHprInterval, Wait, Func
-from direct.filter.CommonFilters import CommonFilters
 from menu_system import MainMenu
 from target import Target
 from splash_screen import SplashScreen
@@ -95,6 +233,7 @@ from target_pool import TargetPool
 from multiplayer.client import NetworkClient
 from multiplayer.player_model import RemotePlayerModel
 from multiplayer.lobby_menu import LobbyMenu
+from shader_system import ShaderSystem
 import random
 import math
 import time
@@ -264,15 +403,6 @@ class Game(ShowBase):
             'target_count': 10,
             'bullet_traces': True,
             'spread_enabled': True,
-            'bloom_enabled': False,
-            'bloom_intensity': 1.0,
-            'blur_enabled': False,
-            'blur_amount': 0.5,
-            'cartoon_enabled': False,
-            'inverted_enabled': False,
-            'ao_enabled': False,
-            'motion_blur_enabled': False,
-            'motion_blur_amount': 0.5
         }
         
         self.settings = self.load_settings()
@@ -294,6 +424,8 @@ class Game(ShowBase):
         self.resources = ResourceManager(self)
         print("📦 ResourceManager инициализирован")
         
+        self.shader_system = ShaderSystem(self)
+        self.shader_system.initialize()
         self.target_pool = None
 
         self.menu = None
@@ -376,12 +508,39 @@ class Game(ShowBase):
             mayChange=True,
         )
         self.scoreboard_text.hide()
+
+        self.is_shader_debug_open = False
+        self.imgui_backend = None
+        self.using_imgui_shader_debug = False
+        self.shader_debug_widgets = []
+        self.shader_debug_panel = None
+        self.shader_ui_search = ""
+        self.shader_ui_preset_name = self.shader_system.current_preset_name
+        self.shader_ui_selected_preset = self.shader_system.current_preset_name
+        self.shader_ui_config = {
+            "width_ratio": 0.46,
+            "height_ratio": 0.52,
+            "min_width": 420.0,
+            "min_height": 280.0,
+            "max_width": 700.0,
+            "max_height": 520.0,
+            "margin_x": 24.0,
+            "margin_y": 56.0,
+            "alpha": 0.94,
+            "font_scale": 0.82,
+            "lock_window_size": False,
+            "show_style_editor": False,
+            "show_imgui_demo": False,
+        }
         
         properties = WindowProperties()
         properties.setTitle("Aim Trainer")
         properties.setCursorHidden(True)
         properties.setMouseMode(WindowProperties.M_relative)
         self.win.requestProperties(properties)
+
+        if not self.initialize_shader_debug_imgui():
+            self.create_shader_debug_ui()
         
         self.camLens.setFov(self.settings['fov'])
         
@@ -399,7 +558,6 @@ class Game(ShowBase):
         self.prev_camera_heading = 0
         self.prev_camera_pitch = 0
         self.camera_rotation_speed = 0
-        self.motion_blur_filter = None
         
         self.jump_combo_time = 1.0
         self.jump_combo_multiplier = 1.0
@@ -559,6 +717,7 @@ class Game(ShowBase):
         self.accept("4", self.switch_weapon, ["dual_revolvers"])
         self.accept("wheel_up", self.cycle_weapon, [1])
         self.accept("wheel_down", self.cycle_weapon, [-1])
+        self.accept("f7", self.toggle_shader_debug_panel)
         self.accept("enter", self.toggle_chat_input)
         self.accept("tab", self.on_tab_down)
         self.accept("tab-up", self.on_tab_up)
@@ -664,6 +823,545 @@ class Game(ShowBase):
             pos=(x, y),
             align=TextNode.ALeft,
             scale=.05)
+
+    def initialize_shader_debug_imgui(self):
+        if not HAS_P3D_IMGUI:
+            return False
+        try:
+            self.imgui_backend = p3dimgui.ImGuiBackend(style="dark")
+            self.imgui_backend.io.mouse_draw_cursor = True
+            self.imgui_backend.hide()
+            self.accept("imgui-new-frame", self.render_shader_debug_imgui)
+            self.using_imgui_shader_debug = True
+            print("[ShaderDebug] Using in-game Dear ImGui backend")
+            return True
+        except Exception as exc:
+            self.imgui_backend = None
+            self.using_imgui_shader_debug = False
+            print(f"[ShaderDebug] ImGui backend unavailable, falling back to DirectGUI: {exc}")
+            return False
+
+    def render_shader_debug_imgui(self):
+        if not self.is_shader_debug_open or not self.using_imgui_shader_debug or not self.imgui_backend:
+            return
+
+        snapshot = self.shader_system.get_ui_snapshot()
+        preset_names = snapshot["preset_names"]
+        if self.shader_ui_selected_preset not in preset_names and preset_names:
+            self.shader_ui_selected_preset = preset_names[0]
+        if not self.shader_ui_preset_name:
+            self.shader_ui_preset_name = snapshot["current_preset"]
+
+        io = imgui.get_io()
+        style = imgui.get_style()
+        style.alpha = float(self.shader_ui_config.get("alpha", 1.0))
+        display_width = float(io.display_size.x or 1024.0)
+        display_height = float(io.display_size.y or 768.0)
+        margin_x = float(self.shader_ui_config.get("margin_x", 24.0))
+        margin_y = float(self.shader_ui_config.get("margin_y", 56.0))
+        min_width = float(self.shader_ui_config.get("min_width", 480.0))
+        min_height = float(self.shader_ui_config.get("min_height", 320.0))
+        max_width = min(
+            float(self.shader_ui_config.get("max_width", 860.0)),
+            max(min_width, display_width - (margin_x * 2.0)),
+        )
+        max_height = min(
+            float(self.shader_ui_config.get("max_height", 620.0)),
+            max(min_height, display_height - (margin_y + 24.0)),
+        )
+        default_width = min(max_width, max(min_width, display_width * float(self.shader_ui_config.get("width_ratio", 0.58))))
+        default_height = min(max_height, max(min_height, display_height * float(self.shader_ui_config.get("height_ratio", 0.62))))
+
+        imgui.set_next_window_pos(ImVec2(margin_x, margin_y), imgui.Cond_.always)
+        imgui.set_next_window_size_constraints(
+            ImVec2(min_width, min_height),
+            ImVec2(max_width, max_height),
+        )
+        imgui.set_next_window_size(ImVec2(default_width, default_height), imgui.Cond_.always)
+        window_flags = (
+            imgui.WindowFlags_.no_saved_settings.value
+            | imgui.WindowFlags_.no_collapse.value
+        )
+        if self.shader_ui_config.get("lock_window_size", False):
+            window_flags |= imgui.WindowFlags_.no_resize.value
+
+        imgui.begin("Shader Shell", flags=window_flags)
+        if hasattr(imgui, "set_window_font_scale"):
+            imgui.set_window_font_scale(float(self.shader_ui_config.get("font_scale", 1.0)))
+        imgui.text("F7 / Esc close")
+        imgui.same_line()
+        self._render_shader_status_badge(snapshot["compile_status"], "experimental")
+        imgui.same_line()
+        dirty_text = "Dirty" if snapshot["preset_dirty"] else "Saved"
+        self._render_shader_status_badge(dirty_text, "active" if not snapshot["preset_dirty"] else "experimental")
+        imgui.separator()
+
+        if imgui.begin_tab_bar("shader-shell-tabs"):
+            for tab in snapshot["tabs"]:
+                opened, _ = imgui.begin_tab_item(tab["label"])
+                if opened:
+                    imgui.begin_child(f"shader-shell-body::{tab['id']}", ImVec2(0, 0))
+                    if tab["id"] == "home":
+                        self._render_shader_home_tab(snapshot)
+                    elif tab["id"] == "techniques":
+                        self._render_shader_techniques_tab(snapshot)
+                    elif tab["id"] == "targets":
+                        self._render_shader_panel_tab("targets", snapshot)
+                    elif tab["id"] == "weapon":
+                        self._render_shader_panel_tab("weapon", snapshot)
+                    elif tab["id"] == "post":
+                        self._render_shader_panel_tab("post", snapshot)
+                    elif tab["id"] == "volumes":
+                        self._render_shader_panel_tab("volumes", snapshot)
+                    elif tab["id"] == "stats":
+                        self._render_shader_stats_tab(snapshot)
+                    imgui.end_child()
+                    imgui.end_tab_item()
+            opened, _ = imgui.begin_tab_item("ImGui")
+            if opened:
+                imgui.begin_child("shader-shell-body::imgui", ImVec2(0, 0))
+                self._render_imgui_settings_tab(display_width, display_height)
+                imgui.end_child()
+                imgui.end_tab_item()
+            imgui.end_tab_bar()
+
+        if self.shader_ui_config.get("show_imgui_demo", False) and hasattr(imgui, "show_demo_window"):
+            visible = True
+            imgui.show_demo_window(visible)
+
+        imgui.end()
+
+    def _shader_status_color(self, status: str):
+        palette = {
+            "active": imgui.ImVec4(0.33, 0.82, 0.48, 1.0),
+            "planned": imgui.ImVec4(0.45, 0.67, 0.95, 1.0),
+            "experimental": imgui.ImVec4(0.97, 0.72, 0.25, 1.0),
+            "broken": imgui.ImVec4(0.93, 0.33, 0.33, 1.0),
+        }
+        return palette.get(status, imgui.ImVec4(0.8, 0.8, 0.8, 1.0))
+
+    def _render_shader_status_badge(self, text: str, status: str):
+        imgui.text_colored(self._shader_status_color(status), text)
+
+    def _render_shader_global_toggles(self):
+        for label, key in [
+            ("Master", "master_enabled"),
+            ("Targets", "target_enabled"),
+            ("Weapon", "weapon_enabled"),
+            ("Post", "post_enabled"),
+            ("Volumes", "volumes_enabled"),
+            ("Debug Views", "debug_views_enabled"),
+        ]:
+            changed, value = imgui.checkbox(label, bool(self.shader_system.state.get(key, False)))
+            if changed:
+                self.update_shader_debug_bool(key, value)
+            imgui.same_line()
+        imgui.new_line()
+
+    def _render_shader_home_tab(self, snapshot: dict):
+        self._render_shader_global_toggles()
+        imgui.separator_text("Presets")
+
+        changed, self.shader_ui_preset_name = imgui.input_text("Preset Name", self.shader_ui_preset_name)
+        if changed:
+            self.shader_ui_preset_name = self.shader_ui_preset_name.strip()
+
+        if imgui.button("Save"):
+            if self.shader_system.save_preset(self.shader_ui_preset_name or "default"):
+                self.shader_ui_selected_preset = self.shader_system.current_preset_name
+                self.shader_ui_preset_name = self.shader_system.current_preset_name
+        imgui.same_line()
+        if imgui.button("Load"):
+            if self.shader_system.load_preset(self.shader_ui_selected_preset):
+                self.shader_ui_preset_name = self.shader_system.current_preset_name
+        imgui.same_line()
+        if imgui.button("Delete"):
+            if self.shader_system.delete_preset(self.shader_ui_selected_preset):
+                self.shader_ui_selected_preset = self.shader_system.current_preset_name
+                self.shader_ui_preset_name = self.shader_system.current_preset_name
+        imgui.same_line()
+        if imgui.button("Reload Shaders"):
+            self.shader_system.reload_shaders()
+        imgui.same_line()
+        if imgui.button("Reset All"):
+            self.reset_shader_debug_values()
+            self.shader_ui_preset_name = self.shader_system.current_preset_name
+
+        if imgui.begin_list_box("Available Presets", ImVec2(-1, 72)):
+            for preset_name in snapshot["preset_names"]:
+                selected = preset_name == self.shader_ui_selected_preset
+                clicked, selected = imgui.selectable(preset_name, selected)
+                if clicked:
+                    self.shader_ui_selected_preset = preset_name
+            imgui.end_list_box()
+
+        imgui.separator_text("Overview")
+        imgui.bullet_text(f"Preset: {snapshot['current_preset']}")
+        imgui.bullet_text(f"Enabled techniques: {snapshot['active_count']} / {snapshot['technique_count']}")
+        imgui.bullet_text(f"Render: {snapshot['render_size'][0]} x {snapshot['render_size'][1]}")
+        imgui.bullet_text(f"Framebuffer: {snapshot['framebuffer_size'][0]} x {snapshot['framebuffer_size'][1]}")
+        if snapshot["buffer_size"]:
+            imgui.bullet_text(f"Scene Buffer: {snapshot['buffer_size'][0]} x {snapshot['buffer_size'][1]}")
+        imgui.bullet_text(f"Post Stage Applied: {snapshot['post_stage_applied']}")
+
+        imgui.separator_text("Pipeline Order")
+        for idx, stage_name in enumerate(snapshot["pipeline_order"], 1):
+            imgui.bullet_text(f"{idx}. {stage_name}")
+
+        imgui.separator_text("Roadmap")
+        for roadmap_item in [
+            "Color grading / tonemap / LUT pack",
+            "Bloom / lens dirt / glare shell",
+            "Reactive overlays for damage, kill and ADS states",
+            "Target outline / respawn materialize pack",
+            "Local fog, heat haze and impact dust placeholders",
+        ]:
+            imgui.bullet_text(roadmap_item)
+
+    def _render_shader_techniques_tab(self, snapshot: dict):
+        changed, self.shader_ui_search = imgui.input_text("Search", self.shader_ui_search)
+        if changed:
+            self.shader_ui_search = self.shader_ui_search.strip()
+        imgui.separator()
+        self._render_shader_grouped_cards(snapshot["registry"], self.shader_ui_search)
+
+    def _render_shader_panel_tab(self, panel_id: str, snapshot: dict):
+        panel_registry = snapshot["panels"].get(panel_id, [])
+        self._render_shader_grouped_cards(panel_registry, "")
+
+    def _render_shader_grouped_cards(self, techniques: list, search_query: str):
+        grouped = {}
+        lowered_search = search_query.lower().strip()
+        for technique in techniques:
+            haystack = " ".join(
+                [
+                    technique.get("display_name", ""),
+                    technique.get("description", ""),
+                    technique.get("group", ""),
+                    technique.get("status", ""),
+                ]
+            ).lower()
+            if lowered_search and lowered_search not in haystack:
+                continue
+            grouped.setdefault(technique.get("group", "Misc"), []).append(technique)
+
+        if not grouped:
+            imgui.text_colored(self._shader_status_color("planned"), "No techniques match the current filter.")
+            return
+
+        for group_name, items in grouped.items():
+            imgui.separator_text(group_name)
+            for technique in sorted(items, key=lambda item: item.get("order", 0)):
+                self._render_shader_technique_card(technique)
+
+    def _render_shader_technique_card(self, technique: dict):
+        status = technique.get("status", "planned")
+        header_open = imgui.collapsing_header(
+            f"{technique['display_name']}##{technique['technique_id']}",
+            imgui.TreeNodeFlags_.default_open.value if status in ("active", "experimental") else 0,
+        )
+        if not header_open:
+            return
+
+        self._render_shader_status_badge(status.upper(), status)
+        imgui.same_line()
+        imgui.text(f"Stage: {technique.get('stage', 'n/a')} | Cost: {technique.get('cost', 'n/a')}")
+        imgui.text_wrapped(technique.get("description", ""))
+        if technique.get("debug_notes"):
+            imgui.text_colored(imgui.ImVec4(0.62, 0.70, 0.82, 1.0), technique["debug_notes"])
+
+        enabled_key = technique.get("enabled_key")
+        if enabled_key:
+            changed, enabled = imgui.checkbox(
+                f"Enabled##{technique['technique_id']}",
+                bool(self.shader_system.state.get(enabled_key, False)),
+            )
+            if changed:
+                self.update_shader_debug_bool(enabled_key, enabled)
+        else:
+            imgui.begin_disabled()
+            imgui.checkbox(f"Enabled##{technique['technique_id']}", False)
+            imgui.end_disabled()
+
+        if technique["params"]:
+            for param in technique["params"]:
+                slider_width = max(240.0, imgui.get_content_region_avail().x - 8.0)
+                imgui.set_next_item_width(slider_width)
+                changed, value = imgui.slider_float(
+                    f"{param['label']}##{technique['technique_id']}::{param['key']}",
+                    float(param["value"]),
+                    param["min"],
+                    param["max"],
+                    param.get("format", "%.2f"),
+                )
+                if changed:
+                    self.update_shader_debug_value(param["key"], value)
+        else:
+            imgui.text_colored(
+                self._shader_status_color("planned"),
+                "Planned placeholder. GLSL implementation will be attached later.",
+            )
+        imgui.spacing()
+
+    def _render_shader_stats_tab(self, snapshot: dict):
+        imgui.separator_text("Runtime")
+        imgui.bullet_text(f"Compile Status: {snapshot['compile_status']}")
+        imgui.bullet_text(f"Current Preset: {snapshot['current_preset']}")
+        imgui.bullet_text(f"Preset Dirty: {'Yes' if snapshot['preset_dirty'] else 'No'}")
+        imgui.bullet_text(f"Active Techniques: {snapshot['active_count']}")
+        imgui.bullet_text(f"Fullscreen Stage Applied: {snapshot['post_stage_applied']}")
+        imgui.bullet_text(f"Post Supported: {'Yes' if snapshot['post_supported'] else 'No'}")
+        imgui.separator_text("Buffers")
+        imgui.bullet_text(f"Render Size: {snapshot['render_size'][0]} x {snapshot['render_size'][1]}")
+        imgui.bullet_text(f"Framebuffer Size: {snapshot['framebuffer_size'][0]} x {snapshot['framebuffer_size'][1]}")
+        if snapshot["buffer_size"]:
+            imgui.bullet_text(f"Scene Buffer Size: {snapshot['buffer_size'][0]} x {snapshot['buffer_size'][1]}")
+        else:
+            imgui.bullet_text("Scene Buffer Size: inactive")
+        imgui.separator_text("Debug")
+        imgui.text_wrapped(
+            "This shell is the future ReShade-Lite host for custom GLSL passes, object shaders and local volumetric placeholders."
+        )
+
+    def _render_imgui_settings_tab(self, display_width: float, display_height: float):
+        cfg = self.shader_ui_config
+
+        imgui.separator_text("Shell Window")
+        changed, value = imgui.slider_float("Width Ratio", float(cfg["width_ratio"]), 0.35, 0.90, "%.2f")
+        if changed:
+            cfg["width_ratio"] = value
+        changed, value = imgui.slider_float("Height Ratio", float(cfg["height_ratio"]), 0.35, 0.90, "%.2f")
+        if changed:
+            cfg["height_ratio"] = value
+        changed, value = imgui.slider_float("Margin X", float(cfg["margin_x"]), 8.0, 96.0, "%.0f")
+        if changed:
+            cfg["margin_x"] = value
+        changed, value = imgui.slider_float("Margin Y", float(cfg["margin_y"]), 8.0, 128.0, "%.0f")
+        if changed:
+            cfg["margin_y"] = value
+        changed, value = imgui.slider_float("Min Width", float(cfg["min_width"]), 360.0, 760.0, "%.0f")
+        if changed:
+            cfg["min_width"] = value
+        changed, value = imgui.slider_float("Min Height", float(cfg["min_height"]), 260.0, 640.0, "%.0f")
+        if changed:
+            cfg["min_height"] = value
+        changed, value = imgui.slider_float("Max Width", float(cfg["max_width"]), 520.0, min(display_width, 1400.0), "%.0f")
+        if changed:
+            cfg["max_width"] = value
+        changed, value = imgui.slider_float("Max Height", float(cfg["max_height"]), 360.0, min(display_height, 1200.0), "%.0f")
+        if changed:
+            cfg["max_height"] = value
+        changed, value = imgui.checkbox("Lock Window Resize", bool(cfg["lock_window_size"]))
+        if changed:
+            cfg["lock_window_size"] = value
+
+        imgui.separator_text("Visual")
+        changed, value = imgui.slider_float("Font Scale", float(cfg["font_scale"]), 0.70, 1.35, "%.2f")
+        if changed:
+            cfg["font_scale"] = value
+        changed, value = imgui.slider_float("Alpha", float(cfg["alpha"]), 0.65, 1.00, "%.2f")
+        if changed:
+            cfg["alpha"] = value
+
+        imgui.separator_text("Tools")
+        changed, value = imgui.checkbox("Show Style Editor", bool(cfg["show_style_editor"]))
+        if changed:
+            cfg["show_style_editor"] = value
+        changed, value = imgui.checkbox("Show ImGui Demo", bool(cfg["show_imgui_demo"]))
+        if changed:
+            cfg["show_imgui_demo"] = value
+        if imgui.button("Reset ImGui Shell"):
+            self.shader_ui_config.update(
+                {
+                    "width_ratio": 0.46,
+                    "height_ratio": 0.52,
+                    "min_width": 420.0,
+                    "min_height": 280.0,
+                    "max_width": 700.0,
+                    "max_height": 520.0,
+                    "margin_x": 24.0,
+                    "margin_y": 56.0,
+                    "alpha": 0.94,
+                    "font_scale": 0.82,
+                    "lock_window_size": False,
+                    "show_style_editor": False,
+                    "show_imgui_demo": False,
+                }
+            )
+
+        imgui.separator_text("Display")
+        imgui.bullet_text(f"Display Size: {int(display_width)} x {int(display_height)}")
+        imgui.bullet_text(f"Current Width Ratio: {cfg['width_ratio']:.2f}")
+        imgui.bullet_text(f"Current Height Ratio: {cfg['height_ratio']:.2f}")
+
+        if cfg.get("show_style_editor", False) and hasattr(imgui, "show_style_editor"):
+            imgui.separator_text("Style Editor")
+            imgui.show_style_editor()
+
+    def create_shader_debug_ui(self):
+        panel = DirectFrame(
+            frameColor=(0.06, 0.06, 0.08, 0.92),
+            frameSize=(-0.62, 0.62, -0.82, 0.82),
+            pos=(0.0, 0, 0.0),
+        )
+        panel.hide()
+        self.shader_debug_panel = panel
+
+        title = DirectLabel(
+            text="Shader Debug",
+            scale=0.07,
+            pos=(0, 0, 0.74),
+            text_fg=(1, 1, 1, 1),
+            frameColor=(0, 0, 0, 0),
+            parent=panel,
+        )
+        self.shader_debug_widgets.append(title)
+
+        subtitle = DirectLabel(
+            text="F7 close | post stages: 0 off, 1 filter, 2 glsl copy, 3 fx",
+            scale=0.04,
+            pos=(0, 0, 0.66),
+            text_fg=(0.75, 0.8, 0.9, 1),
+            frameColor=(0, 0, 0, 0),
+            parent=panel,
+        )
+        self.shader_debug_widgets.append(subtitle)
+
+        rows = [
+            ("Master", "master_enabled", "toggle"),
+            ("Target Shader", "target_enabled", "toggle"),
+            ("Weapon Shader", "weapon_enabled", "toggle"),
+            ("Post FX", "post_enabled", "toggle"),
+            ("Post Stage", "post_debug_stage", "slider", (0.0, 3.0)),
+            ("Target Hit Flash", "target_hit_flash", "slider", (0.0, 4.0)),
+            ("Target Emissive", "target_emissive", "slider", (0.0, 3.0)),
+            ("Target Pulse", "target_pulse_speed", "slider", (0.0, 8.0)),
+            ("Target Dissolve", "target_dissolve_test", "slider", (0.0, 1.0)),
+            ("Weapon Fresnel", "weapon_fresnel", "slider", (0.0, 4.0)),
+            ("Weapon Flash", "weapon_flash_strength", "slider", (0.0, 4.0)),
+            ("Post Vignette", "post_vignette", "slider", (0.0, 1.0)),
+            ("Post Contrast", "post_contrast", "slider", (0.5, 2.0)),
+            ("Post Saturation", "post_saturation", "slider", (0.0, 2.0)),
+            ("Post Sharpen", "post_sharpen", "slider", (0.0, 2.0)),
+            ("Post Hit Tint", "post_hit_tint", "slider", (0.0, 1.0)),
+            ("Post Speed FX", "post_speed_strength", "slider", (0.0, 1.0)),
+        ]
+
+        y = 0.54
+        for row in rows:
+            label_text, key, kind = row[:3]
+            label = DirectLabel(
+                text=label_text,
+                scale=0.045,
+                pos=(-0.42, 0, y),
+                text_align=TextNode.ALeft,
+                text_fg=(1, 1, 1, 1),
+                frameColor=(0, 0, 0, 0),
+                parent=panel,
+            )
+            self.shader_debug_widgets.append(label)
+
+            if kind == "toggle":
+                widget = DirectCheckButton(
+                    text="",
+                    scale=0.05,
+                    pos=(0.38, 0, y - 0.01),
+                    indicatorValue=1 if self.shader_system.state.get(key, False) else 0,
+                    frameColor=(0, 0, 0, 0),
+                    parent=panel,
+                )
+                widget["command"] = lambda shader_key=key, check_widget=widget: self.update_shader_debug_bool(
+                    shader_key,
+                    bool(check_widget["indicatorValue"]),
+                )
+            else:
+                low, high = row[3]
+                widget = DirectSlider(
+                    range=(low, high),
+                    value=float(self.shader_system.state.get(key, low)),
+                    pageSize=(high - low) / 100.0,
+                    scale=0.32,
+                    pos=(0.15, 0, y),
+                    parent=panel,
+                )
+                widget["command"] = lambda shader_key=key, slider_widget=widget: self.update_shader_debug_value(
+                    shader_key,
+                    float(slider_widget["value"]),
+                )
+            self.shader_debug_widgets.append(widget)
+            y -= 0.12
+
+        reset_btn = DirectButton(
+            text="Reset",
+            scale=0.055,
+            pos=(-0.18, 0, -0.68),
+            command=self.reset_shader_debug_values,
+            parent=panel,
+        )
+        close_btn = DirectButton(
+            text="Close",
+            scale=0.055,
+            pos=(0.18, 0, -0.68),
+            command=self.toggle_shader_debug_panel,
+            parent=panel,
+        )
+        self.shader_debug_widgets.extend([reset_btn, close_btn])
+
+    def _set_overlay_mouse_mode(self, enabled: bool):
+        props = WindowProperties()
+        props.setCursorHidden(not enabled)
+        props.setMouseMode(WindowProperties.M_absolute if enabled else WindowProperties.M_relative)
+        self.win.requestProperties(props)
+
+    def toggle_shader_debug_panel(self):
+        if self.is_splash_screen_active:
+            return
+        if self.is_shader_debug_open:
+            self.is_shader_debug_open = False
+            if self.using_imgui_shader_debug and self.imgui_backend:
+                self.imgui_backend.hide()
+            if self.shader_debug_panel:
+                self.shader_debug_panel.hide()
+            self._set_overlay_mouse_mode(False)
+            return
+
+        if self.is_chat_active:
+            self.close_chat_input()
+        if self.is_shader_debug_open:
+            self.toggle_shader_debug_panel()
+
+        self.is_shader_debug_open = True
+        if self.using_imgui_shader_debug and self.imgui_backend:
+            self.imgui_backend.show()
+            props = WindowProperties()
+            props.setCursorHidden(True)
+            props.setMouseMode(WindowProperties.M_absolute)
+            self.win.requestProperties(props)
+        elif self.shader_debug_panel:
+            self.shader_debug_panel.show()
+            self._set_overlay_mouse_mode(True)
+        self.mouse_pressed = False
+        for key in self.keyMap:
+            self.keyMap[key] = False
+
+    def update_shader_debug_bool(self, key: str, value):
+        self.shader_system.set_state_bool(key, value)
+
+    def update_shader_debug_value(self, key: str, value):
+        self.shader_system.set_state_value(key, value)
+
+    def reset_shader_debug_values(self):
+        self.shader_system.reset_state()
+        if self.using_imgui_shader_debug:
+            return
+        if not self.shader_debug_panel:
+            return
+        # Rebuild panel to keep slider values in sync.
+        self.shader_debug_panel.destroy()
+        self.shader_debug_widgets = []
+        self.create_shader_debug_ui()
+        if self.is_shader_debug_open and self.shader_debug_panel:
+            self.shader_debug_panel.show()
 
     def create_cross_marker(self, position):
         marker_node = NodePath("hit_marker")
@@ -859,6 +1557,15 @@ class Game(ShowBase):
         self.original_weapon_pos = self.weapon.getPos()
         self.original_weapon_hpr = self.weapon.getHpr()
 
+    def setup_weapon_render_layer(self):
+        return
+
+    def cleanup_weapon_render_layer(self):
+        return
+
+    def sync_weapon_camera(self):
+        return
+
     def update_weapon_position(self):
         """Обновляет позицию оружия на основе настроек"""
         if not hasattr(self, 'weapon') or self.weapon.isEmpty():
@@ -934,7 +1641,7 @@ class Game(ShowBase):
         recoil_sequence.start()
 
     def updateKeyMap(self, key, value):
-        if self.is_chat_active:
+        if self.is_chat_active or self.is_shader_debug_open:
             self.keyMap[key] = False
             return
         self.keyMap[key] = value
@@ -1000,7 +1707,7 @@ class Game(ShowBase):
     def shoot(self):
         if self.is_splash_screen_active:  # Check if splash screen is active
             return  # Ignore all actions during splash screen
-        if self.is_chat_active:
+        if self.is_chat_active or self.is_shader_debug_open:
             return
         
         if not self.can_shoot:
@@ -1144,6 +1851,7 @@ class Game(ShowBase):
             self.animate_weapon_recoil()
         
         self.last_shot_time = globalClock.getFrameTime()
+        self.shader_system.pulse_weapon()
         # Emit a short multiplayer "shooting" pulse so remote clients can render shot effects.
         self.shoot_state_frames = 2
         is_authoritative_mp = self.is_multiplayer and self.network and self.network.is_connected()
@@ -1216,27 +1924,12 @@ class Game(ShowBase):
                     else:
                         local_pos = Point3(0, 0.6, -0.2)
                 
-                start_pos = self.camera.getPos() + self.camera.getMat().xformVec(local_pos)
+                start_pos = weapon_pos
                 self.create_bullet_trace(start_pos, hit_pos)
                 if not is_authoritative_mp:
                     self.handle_collision(entry)
             else:
-                if self.current_weapon == "dual_revolvers":
-                    if self.active_revolver == "left":
-                        local_pos = Point3(-2.0, 0.6, -0.2)
-                    else:
-                        local_pos = Point3(0.4, 0.6, -0.2)
-                else:
-                    if self.current_weapon == "rifle":
-                        local_pos = Point3(0.2, 0.6, -0.2)
-                    elif self.current_weapon == "pistol":
-                        local_pos = Point3(0.15, 0.6, -0.2)
-                    elif self.current_weapon == "sniper":
-                        local_pos = Point3(0.25, 0.6, -0.2)
-                    else:
-                        local_pos = Point3(0, 0.6, -0.2)
-                
-                start_pos = self.camera.getPos() + self.camera.getMat().xformVec(local_pos)
+                start_pos = weapon_pos
                 self.create_bullet_trace(start_pos, end_pos)
         
     def remove_specific_effect(self, effect_index, task):
@@ -1311,6 +2004,9 @@ class Game(ShowBase):
         """Переключает паузу в игре"""
         if self.is_splash_screen_active:
             return
+        if self.is_shader_debug_open:
+            self.toggle_shader_debug_panel()
+            return
         if self.is_chat_active:
             self.close_chat_input()
             return
@@ -1329,6 +2025,9 @@ class Game(ShowBase):
 
         if self.is_multiplayer or self.network:
             self.cleanup_multiplayer()
+
+        if self.is_shader_debug_open:
+            self.toggle_shader_debug_panel()
             
         if hasattr(self, 'score_text'):
             self.score_text.hide()
@@ -1388,6 +2087,7 @@ class Game(ShowBase):
         
         self.setup_targets()
         self.setup_weapon()
+        self.shader_system.rebind_scene_objects()
         
         self.taskMgr.add(self.update, "update")
         self.accept("mouse1", self.on_mouse_press)
@@ -1471,6 +2171,7 @@ class Game(ShowBase):
                 break
 
         if target_obj:
+            self.shader_system.mark_target_hit(target_obj)
             if target_obj in self.targets:
                 self.targets.remove(target_obj)
             target_obj.destroy()
@@ -1612,6 +2313,11 @@ class Game(ShowBase):
         for result in shot_results:
             shooter_id = result.get("shooter_id")
             hit_pos = result.get("hit_pos")
+            target_id = result.get("target_id")
+            if target_id:
+                hit_target = self.mp_targets_by_id.get(target_id)
+                if hit_target:
+                    self.shader_system.mark_target_hit(hit_target)
             if shooter_id == local_player_id:
                 if not result.get("hit"):
                     continue
@@ -1871,7 +2577,7 @@ class Game(ShowBase):
             
             self.camera.setZ(new_z)
             
-        if self.mouseWatcherNode.hasMouse() and not self.is_chat_active:
+        if self.mouseWatcherNode.hasMouse() and not self.is_chat_active and not self.is_shader_debug_open:
             mouse_x = self.mouseWatcherNode.getMouseX()
             mouse_y = self.mouseWatcherNode.getMouseY()
             
@@ -1894,9 +2600,6 @@ class Game(ShowBase):
             self.prev_camera_heading = self.camera_heading
             self.prev_camera_pitch = self.camera_pitch
             
-            if self.settings.get('motion_blur_enabled', False):
-                self.apply_motion_blur()
-            
             self.win.movePointer(0,
                 int(self.win.getProperties().getXSize() / 2),
                 int(self.win.getProperties().getYSize() / 2))
@@ -1913,6 +2616,7 @@ class Game(ShowBase):
         self.refresh_chat_display()
         
         self.update_aim(task)
+        self.shader_system.update(dt)
         
         if self.is_multiplayer and self.network and self.network.is_connected():
             snapshot = self.network.consume_latest_targets_snapshot()
@@ -1988,40 +2692,6 @@ class Game(ShowBase):
         """Конец прицеливания"""
         self.is_aiming = False
 
-    def apply_motion_blur(self):
-        """Применяет Motion Blur эффект основываясь на скорости вращения камеры"""
-        motion_blur_amount = self.settings.get('motion_blur_amount', 0.5)
-        
-        normalized_speed = min(self.camera_rotation_speed / 50.0, 1.0)
-        blur_intensity = normalized_speed * motion_blur_amount
-        
-        if blur_intensity > 0.05:
-            if self.motion_blur_filter is None:
-                try:
-                    self.motion_blur_filter = CommonFilters(self.win, self.cam)
-                except Exception as e:
-                    # #region agent log
-                    import time as _log_time; _log_file = open(r'c:\Users\heck43\Documents\GitHub\aim_trainer_for_heck43\.cursor\debug.log', 'a', encoding='utf-8'); _log_file.write(json.dumps({"sessionId":"debug-session","runId":"initial","hypothesisId":"A","location":"main.py:1932","message":"motion blur filter creation failed","data":{"error":str(e)},"timestamp":int(_log_time.time()*1000)})+'\n'); _log_file.close()
-                    # #endregion
-                    return
-            
-            try:
-                self.motion_blur_filter.setBlurSharpen(amount=blur_intensity)
-            except Exception as e:
-                # #region agent log
-                import time as _log_time; _log_file = open(r'c:\Users\heck43\Documents\GitHub\aim_trainer_for_heck43\.cursor\debug.log', 'a', encoding='utf-8'); _log_file.write(json.dumps({"sessionId":"debug-session","runId":"initial","hypothesisId":"A","location":"main.py:1939","message":"motion blur setBlurSharpen failed","data":{"error":str(e),"blur_intensity":blur_intensity},"timestamp":int(_log_time.time()*1000)})+'\n'); _log_file.close()
-                # #endregion
-                pass
-        else:
-            if self.motion_blur_filter:
-                try:
-                    self.motion_blur_filter.delBlurSharpen()
-                except Exception as e:
-                    # #region agent log
-                    import time as _log_time; _log_file = open(r'c:\Users\heck43\Documents\GitHub\aim_trainer_for_heck43\.cursor\debug.log', 'a', encoding='utf-8'); _log_file.write(json.dumps({"sessionId":"debug-session","runId":"initial","hypothesisId":"A","location":"main.py:1946","message":"motion blur delBlurSharpen failed","data":{"error":str(e)},"timestamp":int(_log_time.time()*1000)})+'\n'); _log_file.close()
-                    # #endregion
-                    pass
-
     def switch_weapon(self, weapon_name):
         if self.is_splash_screen_active:
             return
@@ -2037,6 +2707,7 @@ class Game(ShowBase):
             self.current_weapon = weapon_name
             self.weapon_model = self.weapon_models[weapon_name]
             self.weapon_model.show()
+            self.shader_system.rebind_scene_objects()
             
             self.shoot_cooldown = self.weapons[weapon_name]["cooldown"]
             self.last_shot_time = 0
@@ -2206,10 +2877,6 @@ class Game(ShowBase):
             
             self.camera.setH(heading)
             self.camera.setP(pitch)
-
-            if hasattr(self, 'weapon'):
-                self.weapon.setH(heading)
-                self.weapon.setP(pitch)
         
         return Task.cont
 
@@ -2251,7 +2918,7 @@ class Game(ShowBase):
         self.save_settings()
 
     def change_music_track(self, track_name):
-        """Изменяет текущий трек музыки"""
+        """???????? ??????? ???? ??????"""
         if 'audio' not in self.settings:
             self.settings['audio'] = self.DEFAULT_SETTINGS['audio'].copy()
             
@@ -2370,7 +3037,7 @@ class Game(ShowBase):
         """Обработчик нажатия кнопки мыши"""
         if self.is_splash_screen_active:
             return
-        if self.is_chat_active:
+        if self.is_chat_active or self.is_shader_debug_open:
             return
         
         self.mouse_pressed = True
@@ -2507,11 +3174,18 @@ class Game(ShowBase):
             except:
                 settings['resolution'] = '1280x720'
         
+        for key in [
+            'bloom_enabled', 'bloom_intensity',
+            'blur_enabled', 'blur_amount',
+            'cartoon_enabled', 'inverted_enabled',
+            'ao_enabled',
+            'motion_blur_enabled', 'motion_blur_amount',
+        ]:
+            settings.pop(key, None)
+
         bool_keys = ['show_target_images', 'bhop_enabled', 'fullscreen', 'show_score', 
                      'show_timer', 'damage_numbers', 'killfeed', 'show_fps', 
-                     'recoil_enabled', 'screen_shake_enabled', 'spread_enabled',
-                     'bloom_enabled', 'blur_enabled', 'ao_enabled', 'inverted_enabled',
-                     'cartoon_enabled', 'motion_blur_enabled']
+                     'recoil_enabled', 'screen_shake_enabled', 'spread_enabled']
         
         for key in bool_keys:
             if key in settings:
@@ -2550,6 +3224,14 @@ class Game(ShowBase):
     def save_settings(self):
         """Сохраняет текущие настройки в файл"""
         self.settings['sensitivity'] = self.mouse_sensitivity
+        for key in [
+            'bloom_enabled', 'bloom_intensity',
+            'blur_enabled', 'blur_amount',
+            'cartoon_enabled', 'inverted_enabled',
+            'ao_enabled',
+            'motion_blur_enabled', 'motion_blur_amount',
+        ]:
+            self.settings.pop(key, None)
         
         settings_path = self._get_settings_path()
         try:
@@ -2566,7 +3248,7 @@ class Game(ShowBase):
         print("✅ Показываем главное меню")
         self.menu.show()
     
-    # ==================== МУЛЬТИПЛЕЕР ====================
+    # ==================== РњРЈР›Р¬РўРРџР›Р•Р•Р  ====================
     
     def show_multiplayer_menu(self):
         """Показывает меню мультиплеера"""
@@ -2677,4 +3359,5 @@ class Game(ShowBase):
 if __name__ == "__main__":
     game = Game()
     game.run()
+
 
