@@ -1,6 +1,7 @@
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel, DGG
 from panda3d.core import TextNode, WindowProperties
 from direct.interval.IntervalGlobal import Sequence, Parallel, LerpScaleInterval, LerpColorScaleInterval, Func
+from menu_system.ui_helpers import get_resolution_ui_scale
 
 class PauseMenu:
     def __init__(self, game):
@@ -8,8 +9,15 @@ class PauseMenu:
         self.is_paused = False
         self.frame = None
         self.buttons = []
+        self.ui_root = self.game.aspect2d.attachNewNode("pause_menu_ui_root")
         
         self.create_menu()
+        self.update_layout()
+
+    def update_layout(self):
+        if not self.ui_root or self.ui_root.isEmpty():
+            return
+        self.ui_root.setScale(get_resolution_ui_scale(self.game))
         
     def create_menu(self):
         """Создает меню паузы"""
@@ -26,7 +34,8 @@ class PauseMenu:
             frameSize=(-0.5, 0.5, -0.4, 0.4),
             relief=DGG.FLAT,
             borderWidth=(0.005, 0.005),
-            pos=(0, 0, 0)
+            pos=(0, 0, 0),
+            parent=self.ui_root
         )
         self.frame.hide()
         
@@ -128,6 +137,7 @@ class PauseMenu:
     def show(self):
         """Показывает меню паузы"""
         self.is_paused = True
+        self.update_layout()
         self.dark_bg.show()
         self.frame.show()
         
@@ -171,6 +181,7 @@ class PauseMenu:
         self.dark_bg.hide()
         
         if hasattr(self.game, 'menu') and self.game.menu:
+            self.game.menu.update_layout()
             self.game.menu.settings_frame.show()
             self.game.menu.settings_visible = True
     
@@ -187,4 +198,5 @@ class PauseMenu:
             self.frame.destroy()
         if self.dark_bg:
             self.dark_bg.destroy()
-
+        if self.ui_root and not self.ui_root.isEmpty():
+            self.ui_root.removeNode()

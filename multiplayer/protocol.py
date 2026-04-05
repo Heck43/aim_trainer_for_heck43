@@ -39,14 +39,17 @@ class Protocol:
             return None
     
     @staticmethod
-    def create_connect_message(player_name: str, player_id: str) -> dict:
+    def create_connect_message(player_name: str, player_id: str, hitboxes: dict = None) -> dict:
         """Создает сообщение о подключении"""
-        return {
+        msg = {
             "type": MSG_CONNECT,
             "player_id": player_id,
             "name": player_name,
             "timestamp": time.time()
         }
+        if hitboxes:
+            msg["hitboxes"] = hitboxes
+        return msg
     
     @staticmethod
     def create_disconnect_message(player_id: str) -> dict:
@@ -154,18 +157,27 @@ class Protocol:
     def create_shot_result(shot_id: int, shooter_id: str, hit: bool, target_id: str,
                            part: str, damage: int, score_delta: int, new_score: int,
                            hit_pos: tuple, server_time: float = None,
-                           origin: tuple = None, direction: tuple = None) -> dict:
+                           origin: tuple = None, direction: tuple = None,
+                           hit_type: str = "none", victim_id: str = None,
+                           victim_name: str = None, victim_hp: int = None,
+                           victim_alive: bool = None, kill: bool = False) -> dict:
         """Creates authoritative shot resolution."""
         return {
             "type": MSG_SHOT_RESULT,
             "shot_id": shot_id,
             "shooter_id": shooter_id,
             "hit": hit,
+            "hit_type": hit_type,
             "target_id": target_id,
             "part": part,
             "damage": damage,
             "score_delta": score_delta,
             "new_score": new_score,
+            "victim_id": victim_id,
+            "victim_name": victim_name,
+            "victim_hp": victim_hp,
+            "victim_alive": victim_alive,
+            "kill": bool(kill),
             "hit_pos": list(hit_pos) if hit_pos is not None else None,
             "origin": list(origin) if origin is not None else None,
             "dir": list(direction) if direction is not None else None,

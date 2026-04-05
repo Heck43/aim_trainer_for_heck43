@@ -5,6 +5,31 @@
 from direct.gui.DirectGui import DirectLabel, DirectSlider, DirectCheckButton, DirectOptionMenu, DGG
 from panda3d.core import TextNode
 
+def get_resolution_ui_scale(game, base_width=1280, base_height=720, min_scale=0.55, max_scale=1.0):
+    """Returns a resolution-aware scale so UI shrinks on larger displays."""
+    width = 0
+    height = 0
+
+    win = getattr(game, "win", None)
+    if win:
+        try:
+            props = win.getProperties()
+            width = int(props.getXSize() or win.getXSize())
+            height = int(props.getYSize() or win.getYSize())
+        except Exception:
+            width = 0
+            height = 0
+
+    if width <= 0 or height <= 0:
+        resolution = str(getattr(game, "settings", {}).get("resolution", f"{base_width}x{base_height}"))
+        try:
+            width, height = map(int, resolution.lower().split("x"))
+        except Exception:
+            width, height = base_width, base_height
+
+    scale = min(base_width / float(max(width, 1)), base_height / float(max(height, 1)))
+    return max(min_scale, min(max_scale, scale))
+
 def create_label(text, pos, parent, scale=0.045, align=TextNode.ALeft):
     """Создает текстовую метку"""
     return DirectLabel(

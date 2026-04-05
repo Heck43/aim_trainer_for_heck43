@@ -50,6 +50,10 @@ Desktop.ini
 # Log files
 *.log
 
+# Claude Code
+.claude/
+CLAUDE.md
+
 # Local development settings
 *.sqlite3
 *.db

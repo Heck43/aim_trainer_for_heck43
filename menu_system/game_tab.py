@@ -80,11 +80,27 @@ class GameTab(BaseTab):
             popupMenu_relief=DGG.FLAT
         )
         self.elements.append(self.target_count_menu)
+
+        hitbox_debug_label = create_label("Hitbox Debug", pos=(-0.6, 0, -0.1), parent=self.frame)
+        self.elements.append(hitbox_debug_label)
+
+        self.hitbox_debug_checkbox = create_checkbox(
+            "Show",
+            pos=(-0.1, 0, -0.1),
+            command=self.toggle_hitbox_debug,
+            parent=self.frame
+        )
+        self.hitbox_debug_checkbox['indicatorValue'] = self.game.settings.get('show_hitbox_debug', False)
+        self.elements.append(self.hitbox_debug_checkbox)
     
     def toggle_bhop(self, status):
         """Переключает bunny hop"""
         self.game.settings['bhop_enabled'] = status
         self.game.save_settings()
+
+    def toggle_hitbox_debug(self, status):
+        """РџРµСЂРµРєР»СЋС‡Р°РµС‚ РґРµР±Р°Рі-РѕС‚РѕР±СЂР°Р¶РµРЅРёРµ hitbox-РѕРІ РёРіСЂРѕРєРѕРІ"""
+        self.game.set_hitbox_debug_enabled(status)
     
     def toggle_recoil(self, status):
         """Переключает отдачу"""

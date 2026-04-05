@@ -6,9 +6,26 @@ from __future__ import annotations
 import os
 import sys
 import glob
-from panda3d.core import NodePath, TextNode, Point3, Vec3, Filename, loadPrcFileData
+from panda3d.core import NodePath, TextNode, Point3, Vec3, Filename, TransparencyAttrib, loadPrcFileData
+from multiplayer.hitbox_calculator import HitboxCalculator
 
 class RemotePlayerModel:
+    """3D РјРѕРґРµР»СЊ СѓРґР°Р»РµРЅРЅРѕРіРѕ РёРіСЂРѕРєР°"""
+    PLAYER_HITBOXES = {
+        "target_head": (0.0, 0.0, 0.00, 0.32),
+        "target_body": (0.0, 0.0, -0.70, 0.50),
+        "target_left_arm": (-0.55, 0.0, -0.70, 0.26),
+        "target_right_arm": (0.55, 0.0, -0.70, 0.26),
+        "target_legs": (0.0, 0.0, -1.45, 0.42),
+    }
+
+    HITBOX_COLORS = {
+        "target_head": (1.0, 0.25, 0.25, 0.35),
+        "target_body": (1.0, 0.85, 0.25, 0.25),
+        "target_left_arm": (0.25, 0.85, 1.0, 0.25),
+        "target_right_arm": (0.25, 0.85, 1.0, 0.25),
+        "target_legs": (0.35, 1.0, 0.35, 0.25),
+    }
     """3D модель удаленного игрока"""
 
     # Настройки позиционирования:
@@ -33,10 +50,13 @@ class RemotePlayerModel:
     ]
 
     color_index = 0
-    
+
     # Кэш для моделей (общий для всех экземпляров)
     _model_cache = {}
     _main_model_cache_key = "__remote_player_main_model__"
+
+    # Кэш для вычисленных хитбоксов (общий для всех игроков с одной моделью)
+    _cached_hitboxes = None
 
     def __init__(self, game, player_id: str, player_name: str):
         self.game = game
@@ -60,6 +80,13 @@ class RemotePlayerModel:
         self.weapon = "pistol"
         self.shooting = False
         self.score = 0
+        self.kills = 0
+        self.deaths = 0
+        self.alive = True
+        self.hitbox_debug_enabled = bool(self.game.settings.get("show_hitbox_debug", False))
+
+        # Хитбоксы (будут вычислены из модели или использованы дефолтные)
+        self.hitboxes = None  # Заполнится после загрузки модели
         
         # Для интерполяции и предсказания
         self.velocity = Vec3(0, 0, 0)
@@ -125,6 +152,52 @@ class RemotePlayerModel:
 
         print("[PlayerModel] MP model preload skipped: no valid model file found")
         return False
+
+    @classmethod
+    def preload_hitboxes(cls, game) -> dict:
+        """
+        Предзагружает и вычисляет хитбоксы для модели игрока.
+        Возвращает вычисленные хитбоксы или дефолтные.
+        """
+        if cls._cached_hitboxes:
+            return cls._cached_hitboxes
+
+        # Загружаем модель если ещё не загружена
+        if not cls.preload_main_model(game):
+            print("[PlayerModel] Не удалось загрузить модель, используем дефолтные хитбоксы")
+            cls._cached_hitboxes = cls.PLAYER_HITBOXES.copy()
+            return cls._cached_hitboxes
+
+        # Получаем модель из кэша
+        cached_model = cls._model_cache.get(cls._main_model_cache_key)
+        if not cached_model or cached_model.isEmpty():
+            print("[PlayerModel] Модель в кэше пуста, используем дефолтные хитбоксы")
+            cls._cached_hitboxes = cls.PLAYER_HITBOXES.copy()
+            return cls._cached_hitboxes
+
+        # Создаём временную копию для вычисления хитбоксов
+        try:
+            temp_model = cached_model.copyTo(NodePath())
+            temp_model.setScale(2.0)  # Применяем тот же масштаб что и в create_model
+
+            # Вычисляем хитбоксы
+            hitboxes = HitboxCalculator.calculate_hitboxes_from_model(
+                temp_model,
+                scale=2.0,
+                eye_height=cls.EYE_HEIGHT
+            )
+
+            # Удаляем временную модель
+            temp_model.removeNode()
+
+            cls._cached_hitboxes = hitboxes
+            print("[PlayerModel] Хитбоксы предзагружены и вычислены")
+            return hitboxes
+
+        except Exception as e:
+            print(f"[PlayerModel] Ошибка при вычислении хитбоксов: {e}")
+            cls._cached_hitboxes = cls.PLAYER_HITBOXES.copy()
+            return cls._cached_hitboxes
 
     def _get_project_root(self) -> str:
         # Для запуска из исходников — обычно корень = папка, где лежит этот файл.
@@ -221,9 +294,28 @@ class RemotePlayerModel:
             self._align_model_to_ground(player_model)
             player_model.reparentTo(self.model)
             self.body = player_model
+
+            # Используем кэшированные хитбоксы если они есть
+            if RemotePlayerModel._cached_hitboxes:
+                self.hitboxes = RemotePlayerModel._cached_hitboxes
+                print(f"[PlayerModel] Используем кэшированные хитбоксы для игрока {self.player_name}")
+            else:
+                # Вычисляем хитбоксы из геометрии модели
+                try:
+                    self.hitboxes = HitboxCalculator.calculate_hitboxes_from_model(
+                        player_model,
+                        scale=2.0,
+                        eye_height=self.EYE_HEIGHT
+                    )
+                    print(f"[PlayerModel] Хитбоксы вычислены для игрока {self.player_name}")
+                except Exception as e:
+                    print(f"[PlayerModel] Ошибка вычисления хитбоксов: {e}, используем дефолтные")
+                    self.hitboxes = self.PLAYER_HITBOXES.copy()
         else:
             # Fallback на простую модель
             self._create_simple_model_body()
+            # Используем дефолтные хитбоксы для простой модели
+            self.hitboxes = self.PLAYER_HITBOXES.copy()
 
         # Контейнер для оружия (поворачивается по pitch) — должен существовать ВСЕГДА
         self.weapon_pivot = NodePath("weapon_pivot")
@@ -247,6 +339,9 @@ class RemotePlayerModel:
         self.name_np.setPos(0, 0, 4.5)
         self.name_np.setScale(0.3)
         self.name_np.setBillboardPointEye()  # Всегда смотрит на камеру
+
+        self._build_hitbox_debug()
+        self._update_label()
 
     def _load_any_builtin(self, names: list[str]) -> NodePath | None:
         """Загружает модель из списка с кэшированием"""
@@ -342,6 +437,33 @@ class RemotePlayerModel:
         except Exception as e:
             print(f"[PlayerModel] Error creating weapon: {e}")
 
+    def _build_hitbox_debug(self):
+        self.hitbox_debug_root = self.model.attachNewNode("hitbox_debug")
+        self.hitbox_debug_root.setBin("fixed", 0)
+        self.hitbox_debug_root.setDepthTest(False)
+        self.hitbox_debug_root.setDepthWrite(False)
+        self.hitbox_debug_root.hide()
+
+        # Используем вычисленные хитбоксы если они есть, иначе дефолтные
+        hitboxes_to_use = self.hitboxes if self.hitboxes else self.PLAYER_HITBOXES
+
+        for part_name, offset in hitboxes_to_use.items():
+            sphere = self._load_any_builtin(["models/misc/sphere", "models/smiley"])
+            if not sphere or sphere.isEmpty():
+                continue
+            ox, oy, oz, radius = offset
+            rgba = self.HITBOX_COLORS.get(part_name, (1, 1, 1, 0.25))
+            sphere.reparentTo(self.hitbox_debug_root)
+            sphere.setPos(ox, oy, self.EYE_HEIGHT + oz)
+            sphere.setScale(radius)
+            sphere.setColor(*rgba)
+            sphere.setTransparency(TransparencyAttrib.MAlpha)
+            sphere.setRenderModeWireframe()
+            sphere.setLightOff()
+            sphere.setTwoSided(True)
+
+        self._refresh_hitbox_debug_visibility()
+
     def _normalize_angle(self, angle: float) -> float:
         """Нормализует угол в диапазон [-180, 180]"""
         while angle > 180:
@@ -350,6 +472,39 @@ class RemotePlayerModel:
             angle += 360
         return angle
     
+    def _update_label(self):
+        if self.alive:
+            self.name_text.setText(f"{self.player_name}\nS:{self.score} K/D:{self.kills}/{self.deaths}")
+            self.name_text.setTextColor(1, 1, 1, 1)
+        else:
+            self.name_text.setText(f"{self.player_name}\nDEAD")
+            self.name_text.setTextColor(1.0, 0.5, 0.5, 1.0)
+
+    def _set_alive_state(self, alive: bool):
+        self.alive = bool(alive)
+        for attr_name in ("body", "head", "weapon_pivot"):
+            node = getattr(self, attr_name, None)
+            if not node or node.isEmpty():
+                continue
+            if self.alive:
+                node.show()
+            else:
+                node.hide()
+        self._refresh_hitbox_debug_visibility()
+        self._update_label()
+
+    def _refresh_hitbox_debug_visibility(self):
+        if not hasattr(self, "hitbox_debug_root") or self.hitbox_debug_root.isEmpty():
+            return
+        if self.hitbox_debug_enabled and self.alive:
+            self.hitbox_debug_root.show()
+        else:
+            self.hitbox_debug_root.hide()
+
+    def set_hitbox_debug_visible(self, visible: bool):
+        self.hitbox_debug_enabled = bool(visible)
+        self._refresh_hitbox_debug_visibility()
+
     def update(self, player_data: dict, dt: float):
         """Обновляет состояние модели (оптимизированная версия)"""
         import time
@@ -362,6 +517,8 @@ class RemotePlayerModel:
         new_target_pos = Point3(pos[0], pos[1], z)
         new_target_heading = float(player_data.get("heading", 0.0))
         new_target_pitch = float(player_data.get("pitch", 0.0))
+        new_alive = bool(player_data.get("alive", True))
+        was_alive = self.alive
         
         # Нормализуем целевой heading сразу
         new_target_heading = self._normalize_angle(new_target_heading)
@@ -401,6 +558,15 @@ class RemotePlayerModel:
 
         # Оптимизированная интерполяция позиции
         lerp_speed = 25.0  # Уменьшили скорость интерполяции для плавности
+        if new_alive and not was_alive:
+            respawn_pos = Point3(new_target_pos.getX(), new_target_pos.getY(), new_target_pos.getZ())
+            self.target_pos = respawn_pos
+            self.current_pos = Point3(respawn_pos.getX(), respawn_pos.getY(), respawn_pos.getZ())
+            self.last_target_pos = Point3(respawn_pos.getX(), respawn_pos.getY(), respawn_pos.getZ())
+            self.model.setPos(self.current_pos)
+
+        self._set_alive_state(new_alive)
+
         diff = self.target_pos - self.current_pos
         distance = diff.length()
         
@@ -455,19 +621,26 @@ class RemotePlayerModel:
 
         # Обновляем счет (только если изменился)
         new_score = player_data.get("score", 0)
-        if new_score != self.score:
+        new_kills = int(player_data.get("kills", self.kills))
+        new_deaths = int(player_data.get("deaths", self.deaths))
+        if new_score != self.score or new_kills != self.kills or new_deaths != self.deaths:
             self.score = new_score
-            self.name_text.setText(f"{self.player_name}\n{self.score}")
+            self.kills = new_kills
+            self.deaths = new_deaths
+            self._update_label()
 
     def show_muzzle_flash(self):
         """Legacy hook; remote tracers are drawn from authoritative shot_result."""
         return
+
+    def get_hitboxes(self):
+        """Возвращает хитбоксы для отправки на сервер"""
+        if self.hitboxes:
+            return self.hitboxes
+        return self.PLAYER_HITBOXES.copy()
 
     def destroy(self):
         """Удаляет модель"""
         if self.model:
             self.model.removeNode()
             self.model = None
-
-
-

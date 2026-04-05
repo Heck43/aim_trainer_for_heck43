@@ -11,6 +11,7 @@ from .controls_tab import ControlsTab
 from .weapon_tab import WeaponTab
 from .game_tab import GameTab
 from .audio_tab import AudioTab
+from .ui_helpers import get_resolution_ui_scale
 
 class MainMenu:
     def __init__(self, game):
@@ -23,6 +24,8 @@ class MainMenu:
         
         self.hover_sound = None
         self.click_sound = None
+        self.ui_root = self.game.aspect2d.attachNewNode("main_menu_ui_root")
+        self._layout_task_name = "main_menu_refresh_layout"
         
         self.current_resolution = self.game.settings.get('resolution', '1280x720')
         self.resolutions = self.get_supported_resolutions()
@@ -30,6 +33,7 @@ class MainMenu:
         self.create_dynamic_background()
         self.create_menu()
         self.create_settings_menu()
+        self.update_layout()
         
         self.initial_hide()
     
@@ -91,6 +95,26 @@ class MainMenu:
             self.game.save_settings()
         
         return resolutions if resolutions else ['1280x720']
+
+    def update_layout(self):
+        """Recomputes menu scale for the current window size."""
+        if not self.ui_root or self.ui_root.isEmpty():
+            return
+        self.ui_root.setScale(get_resolution_ui_scale(self.game))
+
+    def schedule_layout_refresh(self, delay=0.05):
+        """Refresh layout after Panda3D applies new window properties."""
+        try:
+            self.game.taskMgr.remove(self._layout_task_name)
+        except Exception:
+            pass
+        self.game.taskMgr.doMethodLater(delay, self._deferred_layout_refresh, self._layout_task_name)
+
+    def _deferred_layout_refresh(self, task):
+        self.update_layout()
+        if hasattr(self.game, "pause_menu") and self.game.pause_menu:
+            self.game.pause_menu.update_layout()
+        return task.done
     
     def create_dynamic_background(self):
         """Создает динамический 3D фон"""
@@ -161,7 +185,8 @@ class MainMenu:
             frameSize=(-0.6, 0.6, -0.5, 0.5),
             relief=DGG.FLAT,
             borderWidth=(0.005, 0.005),
-            pos=(0, 0, 0)
+            pos=(0, 0, 0),
+            parent=self.ui_root
         )
         
         self.top_line = DirectFrame(
@@ -278,7 +303,8 @@ class MainMenu:
             frameSize=(-0.9, 0.9, -0.65, 0.65),
             relief=DGG.FLAT,
             borderWidth=(0, 0),
-            pos=(0, 0, 0)
+            pos=(0, 0, 0),
+            parent=self.ui_root
         )
         self.settings_frame.hide()
         
@@ -417,6 +443,7 @@ class MainMenu:
             self.click_sound.play()
         
         if not self.settings_visible:
+            self.update_layout()
             self.settings_frame.show()
             self.frame.hide()
             self.title.hide()
@@ -446,6 +473,7 @@ class MainMenu:
     
     def show(self):
         """Показать меню"""
+        self.update_layout()
         self.dark_bg.show()
         self.frame.show()
         
@@ -503,6 +531,11 @@ class MainMenu:
     
     def cleanup(self):
         """Очистить ресурсы меню"""
+        try:
+            self.game.taskMgr.remove(self._layout_task_name)
+        except Exception:
+            pass
+
         for obj in self.background_objects:
             obj.removeNode()
         self.background_objects.clear()
@@ -513,7 +546,9 @@ class MainMenu:
         if self.frame:
             self.title_animation.pause()
             self.frame.destroy()
-        
+
         for tab in self.tabs.values():
             tab.cleanup()
 
+        if self.ui_root and not self.ui_root.isEmpty():
+            self.ui_root.removeNode()

@@ -1,11 +1,11 @@
 {
     "sensitivity": 32.219486236572266,
     "fov": 74,
-    "resolution": "1280x960",
+    "resolution": "1280x720",
     "show_score": true,
     "show_timer": true,
     "volume": 100,
-    "show_target_images": false,
+    "show_target_images": true,
     "damage_numbers": true,
     "killfeed": true,
     "show_fps": true,
@@ -24,8 +24,9 @@
     "screen_shake_enabled": true,
     "target_count": 10,
     "spread_enabled": true,
-    "fullscreen": 0,
-    "windowed_resolution": "1280x960",
+    "fullscreen": false,
+    "windowed_resolution": "1280x720",
     "nsfw_category": "furry",
-    "ui_font": "Default"
+    "ui_font": "Default",
+    "show_hitbox_debug": true
 }

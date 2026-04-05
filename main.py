@@ -225,6 +225,7 @@ from direct.gui.DirectGui import DirectFrame, DirectEntry, DirectButton, DirectC
 from direct.task import Task
 from direct.interval.IntervalGlobal import Sequence, Parallel, LerpColorScaleInterval, LerpColorInterval, LerpPosInterval, LerpHprInterval, Wait, Func
 from menu_system import MainMenu
+from menu_system.ui_helpers import get_resolution_ui_scale
 from target import Target
 from splash_screen import SplashScreen
 from pause_menu import PauseMenu
@@ -403,6 +404,7 @@ class Game(ShowBase):
             'target_count': 10,
             'bullet_traces': True,
             'spread_enabled': True,
+            'show_hitbox_debug': False,
         }
         
         self.settings = self.load_settings()
@@ -438,6 +440,14 @@ class Game(ShowBase):
         self.current_weapon = "pistol"
         self.is_shooting = False
         self.shoot_state_frames = 0
+        self.mp_local_hp = 100
+        self.mp_local_max_hp = 100
+        self.mp_local_kills = 0
+        self.mp_local_deaths = 0
+        self.mp_local_alive = True
+        self.mp_local_respawn_at = 0.0
+        self.mp_spawn_synced = False
+        self.hurt_flash_alpha = 0.0
         
         self.splash = SplashScreen(self)
         self.splash.start()
@@ -508,6 +518,50 @@ class Game(ShowBase):
             mayChange=True,
         )
         self.scoreboard_text.hide()
+
+        self.hp_text = OnscreenText(
+            text="HP: 100/100",
+            pos=(-1.3, 0.82),
+            fg=(0.5, 1.0, 0.5, 1),
+            align=TextNode.ALeft,
+            scale=0.06,
+            mayChange=True,
+        )
+        self.hp_text.hide()
+
+        self.kd_text = OnscreenText(
+            text="K/D: 0/0",
+            pos=(-1.3, 0.74),
+            fg=(1, 1, 1, 1),
+            align=TextNode.ALeft,
+            scale=0.055,
+            mayChange=True,
+        )
+        self.kd_text.hide()
+
+        death_overlay_cm = CardMaker("death_overlay")
+        death_overlay_cm.setFrame(-1, 1, -1, 1)
+        self.death_overlay = self.render2d.attachNewNode(death_overlay_cm.generate())
+        self.death_overlay.setTransparency(TransparencyAttrib.MAlpha)
+        self.death_overlay.setColor(0.2, 0.0, 0.0, 0.45)
+        self.death_overlay.hide()
+
+        self.death_text = OnscreenText(
+            text="",
+            pos=(0, 0.12),
+            fg=(1.0, 0.9, 0.9, 1.0),
+            align=TextNode.ACenter,
+            scale=0.09,
+            mayChange=True,
+        )
+        self.death_text.hide()
+
+        hurt_flash_cm = CardMaker("hurt_flash")
+        hurt_flash_cm.setFrame(-1, 1, -1, 1)
+        self.hurt_flash = self.render2d.attachNewNode(hurt_flash_cm.generate())
+        self.hurt_flash.setTransparency(TransparencyAttrib.MAlpha)
+        self.hurt_flash.setColor(0.85, 0.05, 0.05, 0.0)
+        self.hurt_flash.hide()
 
         self.is_shader_debug_open = False
         self.imgui_backend = None
@@ -718,6 +772,7 @@ class Game(ShowBase):
         self.accept("wheel_up", self.cycle_weapon, [1])
         self.accept("wheel_down", self.cycle_weapon, [-1])
         self.accept("f7", self.toggle_shader_debug_panel)
+        self.accept("f8", self.toggle_hitbox_debug)
         self.accept("enter", self.toggle_chat_input)
         self.accept("tab", self.on_tab_down)
         self.accept("tab-up", self.on_tab_up)
@@ -757,7 +812,7 @@ class Game(ShowBase):
         self.rayNodePath = self.camera.attachNewNode(rayNode)
         self.cTrav.addCollider(self.rayNodePath, self.cQueue)
         
-        self.accept("window-event", self.cleanup)
+        self.accept("window-event", self.handle_window_event)
         
         self.current_time_scale = 1.0
         self.target_time_scale = 1.0
@@ -814,6 +869,21 @@ class Game(ShowBase):
         self.is_splash_screen_active = True
 
         self.active_revolver = "left"
+        self.hud_scale_targets = {
+            "score_text": 0.07,
+            "timer_text": 0.07,
+            "chat_text": 0.04,
+            "chat_entry": 0.05,
+            "scoreboard_text": 0.05,
+            "hp_text": 0.06,
+            "kd_text": 0.055,
+            "death_text": 0.09,
+            "crosshair": 0.05,
+            "fps_text": 0.05,
+            "pos_text": 0.05,
+            "speed_text": 0.05,
+        }
+        self.apply_resolution_ui_scale()
 
     def create_text(self, x, y):
         return OnscreenText(
@@ -823,6 +893,34 @@ class Game(ShowBase):
             pos=(x, y),
             align=TextNode.ALeft,
             scale=.05)
+
+    def get_hud_ui_scale(self):
+        return get_resolution_ui_scale(self, base_width=1280, base_height=720, min_scale=0.50, max_scale=1.0)
+
+    def get_imgui_shell_scale(self):
+        return get_resolution_ui_scale(self, base_width=1280, base_height=720, min_scale=0.58, max_scale=1.0)
+
+    def apply_resolution_ui_scale(self):
+        hud_scale = self.get_hud_ui_scale()
+
+        for attr_name, base_scale in getattr(self, "hud_scale_targets", {}).items():
+            widget = getattr(self, attr_name, None)
+            if widget is None:
+                continue
+            try:
+                widget.setScale(base_scale * hud_scale)
+            except Exception:
+                pass
+
+        for msg_data in getattr(self, "killfeed_messages", []):
+            try:
+                msg_data["message"].setScale(0.04 * hud_scale)
+            except Exception:
+                pass
+            try:
+                msg_data["frame_root"].setScale(hud_scale)
+            except Exception:
+                pass
 
     def initialize_shader_debug_imgui(self):
         if not HAS_P3D_IMGUI:
@@ -855,22 +953,23 @@ class Game(ShowBase):
         io = imgui.get_io()
         style = imgui.get_style()
         style.alpha = float(self.shader_ui_config.get("alpha", 1.0))
+        shell_scale = self.get_imgui_shell_scale()
         display_width = float(io.display_size.x or 1024.0)
         display_height = float(io.display_size.y or 768.0)
         margin_x = float(self.shader_ui_config.get("margin_x", 24.0))
         margin_y = float(self.shader_ui_config.get("margin_y", 56.0))
-        min_width = float(self.shader_ui_config.get("min_width", 480.0))
-        min_height = float(self.shader_ui_config.get("min_height", 320.0))
+        min_width = float(self.shader_ui_config.get("min_width", 480.0)) * shell_scale
+        min_height = float(self.shader_ui_config.get("min_height", 320.0)) * shell_scale
         max_width = min(
-            float(self.shader_ui_config.get("max_width", 860.0)),
+            float(self.shader_ui_config.get("max_width", 860.0)) * shell_scale,
             max(min_width, display_width - (margin_x * 2.0)),
         )
         max_height = min(
-            float(self.shader_ui_config.get("max_height", 620.0)),
+            float(self.shader_ui_config.get("max_height", 620.0)) * shell_scale,
             max(min_height, display_height - (margin_y + 24.0)),
         )
-        default_width = min(max_width, max(min_width, display_width * float(self.shader_ui_config.get("width_ratio", 0.58))))
-        default_height = min(max_height, max(min_height, display_height * float(self.shader_ui_config.get("height_ratio", 0.62))))
+        default_width = min(max_width, max(min_width, display_width * float(self.shader_ui_config.get("width_ratio", 0.58)) * shell_scale))
+        default_height = min(max_height, max(min_height, display_height * float(self.shader_ui_config.get("height_ratio", 0.62)) * shell_scale))
 
         imgui.set_next_window_pos(ImVec2(margin_x, margin_y), imgui.Cond_.always)
         imgui.set_next_window_size_constraints(
@@ -887,7 +986,7 @@ class Game(ShowBase):
 
         imgui.begin("Shader Shell", flags=window_flags)
         if hasattr(imgui, "set_window_font_scale"):
-            imgui.set_window_font_scale(float(self.shader_ui_config.get("font_scale", 1.0)))
+            imgui.set_window_font_scale(max(0.55, float(self.shader_ui_config.get("font_scale", 1.0)) * shell_scale))
         imgui.text("F7 / Esc close")
         imgui.same_line()
         self._render_shader_status_badge(snapshot["compile_status"], "experimental")
@@ -1097,10 +1196,11 @@ class Game(ShowBase):
                 if changed:
                     self.update_shader_debug_value(param["key"], value)
         else:
-            imgui.text_colored(
-                self._shader_status_color("planned"),
-                "Planned placeholder. GLSL implementation will be attached later.",
-            )
+            message = "Runtime-integrated effect. No direct per-technique controls yet."
+            message_status = status if status in ("active", "experimental", "broken") else "planned"
+            if message_status == "planned":
+                message = "Planned placeholder. GLSL implementation will be attached later."
+            imgui.text_colored(self._shader_status_color(message_status), message)
         imgui.spacing()
 
     def _render_shader_stats_tab(self, snapshot: dict):
@@ -1709,6 +1809,8 @@ class Game(ShowBase):
             return  # Ignore all actions during splash screen
         if self.is_chat_active or self.is_shader_debug_open:
             return
+        if not self.can_local_multiplayer_act():
+            return
         
         if not self.can_shoot:
             return
@@ -1986,6 +2088,16 @@ class Game(ShowBase):
         
         return task.cont
 
+    def handle_window_event(self, window=None):
+        self.cleanup(window)
+        self.apply_resolution_ui_scale()
+        if hasattr(self, "splash") and self.splash:
+            self.splash.update_layout()
+        if hasattr(self, "menu") and self.menu:
+            self.menu.schedule_layout_refresh(0.0)
+        if hasattr(self, "pause_menu") and self.pause_menu:
+            self.pause_menu.update_layout()
+
     def cleanup(self, window=None):
         for line_node, marker_node, task in self.shot_effects:
             if line_node:
@@ -2040,6 +2152,16 @@ class Game(ShowBase):
             self.chat_text.hide()
         if hasattr(self, 'scoreboard_text'):
             self.scoreboard_text.hide()
+        if hasattr(self, 'hp_text'):
+            self.hp_text.hide()
+        if hasattr(self, 'kd_text'):
+            self.kd_text.hide()
+        if hasattr(self, 'death_overlay'):
+            self.death_overlay.hide()
+        if hasattr(self, 'death_text'):
+            self.death_text.hide()
+        if hasattr(self, 'hurt_flash'):
+            self.hurt_flash.hide()
         self.is_chat_active = False
         self.show_scoreboard = False
             
@@ -2097,6 +2219,22 @@ class Game(ShowBase):
         self.start_time = time.time()
         self.update_score_display()
         self.update_timer_display()
+        self.mp_spawn_synced = False
+        self.hurt_flash_alpha = 0.0
+        self.hurt_flash.hide()
+        self.death_overlay.hide()
+        self.death_text.hide()
+        if self.is_multiplayer:
+            self.mp_local_hp = 100
+            self.mp_local_max_hp = 100
+            self.mp_local_kills = 0
+            self.mp_local_deaths = 0
+            self.mp_local_alive = True
+            self.mp_local_respawn_at = 0.0
+            self.update_multiplayer_hud()
+        else:
+            self.hp_text.hide()
+            self.kd_text.hide()
         
         if self.show_score:
             self.score_text.show()
@@ -2120,7 +2258,144 @@ class Game(ShowBase):
         self.game_time = time.time() - self.start_time
         self.update_timer_display()
         return task.cont
-    
+
+    def can_local_multiplayer_act(self):
+        if not (self.is_multiplayer and self.network and self.network.is_connected()):
+            return True
+        return self.mp_local_alive
+
+    def reset_multiplayer_motion_state(self):
+        self.mouse_pressed = False
+        self.horizontal_velocity = Vec3(0, 0, 0)
+        self.vertical_velocity = 0.0
+        self.is_jumping = False
+        self.jump_speed_boost = 1.0
+        self.jump_combo_multiplier = 1.0
+        self.current_combo_jumps = 0
+        self.recoil_pitch = 0
+        self.recoil_yaw = 0
+        self.current_spread = 0.0
+        self.is_aiming = False
+        self.can_shoot = True
+        self.last_shot_time = 0
+        self.shoot_state_frames = 0
+        self.prev_camera_heading = self.camera_heading
+        self.prev_camera_pitch = self.camera_pitch
+        if self.combo_task:
+            self.taskMgr.remove(self.combo_task)
+            self.combo_task = None
+        try:
+            self.taskMgr.remove("reset_shoot")
+        except Exception:
+            pass
+
+    def sync_local_multiplayer_spawn(self, state):
+        pos = state.get("pos")
+        if isinstance(pos, (list, tuple)) and len(pos) == 3:
+            self.camera.setPos(float(pos[0]), float(pos[1]), float(pos[2]))
+        self.reset_multiplayer_motion_state()
+        self.mp_spawn_synced = True
+
+    def trigger_hurt_flash(self, intensity=0.6):
+        clamped = max(0.0, min(0.85, float(intensity)))
+        self.hurt_flash_alpha = max(self.hurt_flash_alpha, clamped)
+        self.hurt_flash.show()
+
+    def update_multiplayer_hud(self):
+        if not (self.is_multiplayer and self.network and self.network.is_connected()):
+            self.hp_text.hide()
+            self.kd_text.hide()
+            self.death_overlay.hide()
+            self.death_text.hide()
+            return
+
+        self.hp_text.show()
+        self.kd_text.show()
+        self.kd_text.setText(f"K/D: {self.mp_local_kills}/{self.mp_local_deaths}")
+
+        if self.mp_local_alive:
+            self.hp_text.setText(f"HP: {self.mp_local_hp}/{self.mp_local_max_hp}")
+            hp_fraction = 1.0
+            if self.mp_local_max_hp > 0:
+                hp_fraction = max(0.0, min(1.0, self.mp_local_hp / float(self.mp_local_max_hp)))
+            if hp_fraction <= 0.25:
+                self.hp_text.setFg((1.0, 0.35, 0.35, 1.0))
+            elif hp_fraction <= 0.6:
+                self.hp_text.setFg((1.0, 0.8, 0.35, 1.0))
+            else:
+                self.hp_text.setFg((0.5, 1.0, 0.5, 1.0))
+            self.death_overlay.hide()
+            self.death_text.hide()
+            return
+
+        server_time = time.time()
+        if self.network and self.network.is_connected():
+            server_time = self.network.get_estimated_server_time()
+        respawn_in = max(0.0, float(self.mp_local_respawn_at or 0.0) - server_time)
+        self.hp_text.setText("HP: DEAD")
+        self.hp_text.setFg((1.0, 0.35, 0.35, 1.0))
+        self.death_overlay.show()
+        self.death_text.setText(f"You Died\nRespawn in {respawn_in:.1f}s")
+        self.death_text.show()
+
+    def update_multiplayer_feedback(self, dt: float):
+        if self.hurt_flash_alpha > 0.0:
+            self.hurt_flash_alpha = max(0.0, self.hurt_flash_alpha - (2.2 * dt))
+            self.hurt_flash.setColor(0.85, 0.05, 0.05, self.hurt_flash_alpha)
+            if self.hurt_flash_alpha > 0.0:
+                self.hurt_flash.show()
+            else:
+                self.hurt_flash.hide()
+        else:
+            self.hurt_flash.hide()
+
+        self.update_multiplayer_hud()
+
+    def refresh_hitbox_debug_visibility(self):
+        enabled = bool(self.settings.get("show_hitbox_debug", False))
+        for player_model in self.remote_players.values():
+            try:
+                player_model.set_hitbox_debug_visible(enabled)
+            except Exception:
+                pass
+
+    def set_hitbox_debug_enabled(self, enabled, save: bool = True):
+        enabled = bool(enabled)
+        self.settings["show_hitbox_debug"] = enabled
+        self.refresh_hitbox_debug_visibility()
+        if save:
+            self.save_settings()
+        state = "ON" if enabled else "OFF"
+        print(f"[Debug] Multiplayer player hitboxes: {state}")
+
+    def toggle_hitbox_debug(self):
+        current = bool(self.settings.get("show_hitbox_debug", False))
+        self.set_hitbox_debug_enabled(not current, save=True)
+
+    def apply_local_multiplayer_state(self, state):
+        if not state:
+            return
+
+        was_alive = self.mp_local_alive
+        self.mp_local_max_hp = max(1, int(state.get("max_hp", self.mp_local_max_hp or 100)))
+        self.mp_local_hp = max(0, int(state.get("hp", self.mp_local_hp)))
+        self.mp_local_kills = max(0, int(state.get("kills", self.mp_local_kills)))
+        self.mp_local_deaths = max(0, int(state.get("deaths", self.mp_local_deaths)))
+        self.mp_local_alive = bool(state.get("alive", self.mp_local_alive))
+        self.mp_local_respawn_at = float(state.get("respawn_at", self.mp_local_respawn_at or 0.0))
+
+        new_score = int(state.get("score", self.score))
+        if new_score != self.score:
+            self.score = new_score
+            self.update_score_display()
+
+        if self.mp_local_alive and (not self.mp_spawn_synced or not was_alive):
+            self.sync_local_multiplayer_spawn(state)
+        elif not self.mp_local_alive and was_alive:
+            self.reset_multiplayer_motion_state()
+
+        self.update_multiplayer_hud()
+
     def handle_collision(self, entry):
         if self.is_multiplayer:
             return
@@ -2212,7 +2487,7 @@ class Game(ShowBase):
         
         text_node_path.setPos(offset_x, 0, offset_y)
         
-        text_node_path.setScale(0.07)
+        text_node_path.setScale(0.07 * self.get_hud_ui_scale())
         
         if int(text) >= 100:
             text_node_path.setColor(1, 0, 0, 1)
@@ -2314,22 +2589,40 @@ class Game(ShowBase):
             shooter_id = result.get("shooter_id")
             hit_pos = result.get("hit_pos")
             target_id = result.get("target_id")
+            hit_type = result.get("hit_type", "none")
+            victim_id = result.get("victim_id")
             if target_id:
                 hit_target = self.mp_targets_by_id.get(target_id)
                 if hit_target:
                     self.shader_system.mark_target_hit(hit_target)
+
             if shooter_id == local_player_id:
                 if not result.get("hit"):
                     continue
                 self.score = int(result.get("new_score", self.score))
-                if hasattr(self, 'score_text') and self.show_score:
-                    self.score_text.setText(f"Score: {self.score}")
+                self.update_score_display()
                 if hit_pos and self.settings.get('damage_numbers', True):
-                    points = int(result.get("score_delta", 0))
+                    if hit_type == "player":
+                        points = int(result.get("damage", 0))
+                    else:
+                        points = int(result.get("score_delta", 0))
                     self.spawn_damage_text(f"+{points}", Point3(hit_pos[0], hit_pos[1], hit_pos[2]))
-                self.activate_hit_effects()
-                self.hit_sound.play()
+                if hit_type == "target":
+                    self.activate_hit_effects()
+                if hit_type in ("target", "player"):
+                    self.hit_sound.play()
+                if hit_type == "player" and result.get("kill") and self.settings.get('killfeed', True):
+                    self.create_killfeed_message(result.get("victim_name", "Player"))
                 continue
+
+            if victim_id == local_player_id and hit_type == "player":
+                victim_alive = bool(result.get("victim_alive", self.mp_local_alive))
+                victim_hp = result.get("victim_hp", self.mp_local_hp)
+                self.mp_local_alive = victim_alive
+                self.mp_local_hp = max(0, int(victim_hp))
+                self.mouse_pressed = False
+                self.trigger_hurt_flash(0.85 if not victim_alive else 0.55)
+                self.update_multiplayer_hud()
 
             # Visualize remote shots from authoritative server events.
             origin = result.get("origin")
@@ -2367,6 +2660,7 @@ class Game(ShowBase):
 
     def create_killfeed_message(self, target_name="Target"):
         """Создает новое сообщение в килфиде"""
+        hud_scale = self.get_hud_ui_scale()
         y_pos = 0.9 - len(self.killfeed_messages) * 0.06
         x_pos = 1.3 + self.killfeed_slide_distance
         
@@ -2376,12 +2670,13 @@ class Game(ShowBase):
             shadow=(0, 0, 0, 0),
             pos=(x_pos, y_pos),
             align=TextNode.ARight,
-            scale=0.04
+            scale=0.04 * hud_scale
         )
         message.setBin('gui-popup', 0)
 
         frame_root = aspect2d.attachNewNode("frame_root")
         frame_root.setPos(x_pos, 0, y_pos)
+        frame_root.setScale(hud_scale)
         
         cm = CardMaker('killfeed_bg')
         cm.setFrame(-0.5, 0.05, -0.015, 0.025)
@@ -2530,12 +2825,17 @@ class Game(ShowBase):
             
             self.camera.setHpr(self.camera_heading, self.camera_pitch, 0)
         
+        can_control_local_player = self.can_local_multiplayer_act()
         move_vec = Vec3(0, 0, 0)
-        
+
         if self.keyMap["w"]: move_vec.addY(1)
         if self.keyMap["s"]: move_vec.addY(-1)
         if self.keyMap["a"]: move_vec.addX(-1)
         if self.keyMap["d"]: move_vec.addX(1)
+
+        if not can_control_local_player:
+            move_vec = Vec3(0, 0, 0)
+            self.horizontal_velocity = Vec3(0, 0, 0)
             
         if move_vec.length() > 0:
             move_vec.normalize()
@@ -2577,7 +2877,7 @@ class Game(ShowBase):
             
             self.camera.setZ(new_z)
             
-        if self.mouseWatcherNode.hasMouse() and not self.is_chat_active and not self.is_shader_debug_open:
+        if self.mouseWatcherNode.hasMouse() and not self.is_chat_active and not self.is_shader_debug_open and can_control_local_player:
             mouse_x = self.mouseWatcherNode.getMouseX()
             mouse_y = self.mouseWatcherNode.getMouseY()
             
@@ -2607,7 +2907,7 @@ class Game(ShowBase):
         current_speed = math.sqrt(self.horizontal_velocity.getX()**2 + self.horizontal_velocity.getY()**2)
         self.speed_text.setText(f"Speed: {current_speed:.1f}")
         
-        if self.mouse_pressed and self.current_weapon == "rifle":
+        if self.mouse_pressed and self.current_weapon == "rifle" and can_control_local_player:
             current_time = time.time()
             if current_time - self.last_shot_time >= self.weapons[self.current_weapon]["cooldown"]:
                 self.shoot()
@@ -2625,11 +2925,7 @@ class Game(ShowBase):
             self.process_network_shot_results()
             for chat in self.network.consume_chat_messages():
                 self.add_chat_line(chat.get("name", "Player"), chat.get("text", ""))
-
-            server_score = self.network.get_local_server_score()
-            if server_score != self.score:
-                self.score = server_score
-                self.update_score_display()
+            self.apply_local_multiplayer_state(self.network.get_local_player_state())
 
             if self.show_scoreboard:
                 scoreboard = self.network.get_scoreboard()
@@ -2637,10 +2933,13 @@ class Game(ShowBase):
                 for idx, p in enumerate(scoreboard, 1):
                     pname = p.get("name", "Player")
                     pscore = int(p.get("score", 0))
-                    lines.append(f"{idx}. {pname}: {pscore}")
+                    pkills = int(p.get("kills", 0))
+                    pdeaths = int(p.get("deaths", 0))
+                    php = "DEAD" if not p.get("alive", True) else str(int(p.get("hp", 0)))
+                    lines.append(f"{idx}. {pname} | S:{pscore} | K/D:{pkills}/{pdeaths} | HP:{php}")
                 self.scoreboard_text.setText("\n".join(lines))
 
-            self.is_shooting = self.shoot_state_frames > 0
+            self.is_shooting = self.shoot_state_frames > 0 and self.can_local_multiplayer_act()
             self.network.send_state(
                 pos=self.camera.getPos(),
                 heading=self.camera_heading,
@@ -2653,7 +2952,8 @@ class Game(ShowBase):
                 self.shoot_state_frames -= 1
             
             self.update_remote_players(dt)
-        
+
+        self.update_multiplayer_feedback(dt)
         return task.cont
 
     def update_aim(self, task):
@@ -3158,6 +3458,8 @@ class Game(ShowBase):
             self.show_score = new_settings['show_score']
         if 'show_timer' in new_settings:
             self.show_timer = new_settings['show_timer']
+        if 'show_hitbox_debug' in new_settings:
+            self.refresh_hitbox_debug_visibility()
             
         self.save_settings()
 
@@ -3185,7 +3487,8 @@ class Game(ShowBase):
 
         bool_keys = ['show_target_images', 'bhop_enabled', 'fullscreen', 'show_score', 
                      'show_timer', 'damage_numbers', 'killfeed', 'show_fps', 
-                     'recoil_enabled', 'screen_shake_enabled', 'spread_enabled']
+                     'recoil_enabled', 'screen_shake_enabled', 'spread_enabled',
+                     'show_hitbox_debug']
         
         for key in bool_keys:
             if key in settings:
@@ -3310,6 +3613,7 @@ class Game(ShowBase):
             if player_id not in self.remote_players:
                 player_name = player_data.get("name", "Unknown")
                 model = RemotePlayerModel(self, player_id, player_name)
+                model.set_hitbox_debug_visible(self.settings.get("show_hitbox_debug", False))
                 self.remote_players[player_id] = model
             
             self.remote_players[player_id].update(player_data, dt)
@@ -3352,6 +3656,24 @@ class Game(ShowBase):
             self.chat_text.hide()
         if hasattr(self, 'scoreboard_text'):
             self.scoreboard_text.hide()
+        if hasattr(self, 'hp_text'):
+            self.hp_text.hide()
+        if hasattr(self, 'kd_text'):
+            self.kd_text.hide()
+        if hasattr(self, 'death_overlay'):
+            self.death_overlay.hide()
+        if hasattr(self, 'death_text'):
+            self.death_text.hide()
+        if hasattr(self, 'hurt_flash'):
+            self.hurt_flash.hide()
+        self.mp_local_hp = 100
+        self.mp_local_max_hp = 100
+        self.mp_local_kills = 0
+        self.mp_local_deaths = 0
+        self.mp_local_alive = True
+        self.mp_local_respawn_at = 0.0
+        self.mp_spawn_synced = False
+        self.hurt_flash_alpha = 0.0
         
         self.is_multiplayer = False
 
@@ -3359,5 +3681,3 @@ class Game(ShowBase):
 if __name__ == "__main__":
     game = Game()
     game.run()
-
-

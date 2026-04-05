@@ -108,6 +108,12 @@ class GraphicsTab(BaseTab):
         if not self.game.settings.get('show_target_images', True):
             self.nsfw_category_menu.hide()
             self.nsfw_category_label.hide()
+
+    def _refresh_ui_layout(self):
+        if hasattr(self.game, 'menu') and self.game.menu:
+            self.game.menu.schedule_layout_refresh()
+        elif hasattr(self.game, 'pause_menu') and self.game.pause_menu:
+            self.game.pause_menu.update_layout()
     
     def update_resolution(self, resolution):
         """Обновляет разрешение экрана"""
@@ -134,6 +140,7 @@ class GraphicsTab(BaseTab):
             self.game.win.requestProperties(props)
         
         self.game.save_settings()
+        self._refresh_ui_layout()
     
     def update_fov(self):
         """Обновляет FOV"""
@@ -159,6 +166,7 @@ class GraphicsTab(BaseTab):
         
         self.game.win.requestProperties(props)
         self.game.save_settings()
+        self._refresh_ui_layout()
     
     def toggle_show_images(self, status):
         """Переключает NSFW режим"""
@@ -192,4 +200,3 @@ class GraphicsTab(BaseTab):
         
         if hasattr(self.game, 'target_pool') and self.game.target_pool and len(self.game.targets) > 0:
             self.game.target_pool.refresh_all_active()
-

@@ -50,6 +50,8 @@ class ShaderSystem:
         self.postprocess_failed_stage = None
 
         self.target_states = {}
+        self.target_visibility = {}
+        self.target_materialize_started = {}
         self.weapon_flash_until = 0.0
         self.hit_tint_until = 0.0
         self.current_weapon_np = None
@@ -492,6 +494,8 @@ class ShaderSystem:
             self._safe_set_shader_input(visual, "u_hit_flash", 0.0)
             self._safe_set_shader_input(visual, "u_emissive_strength", 0.0)
             self._safe_set_shader_input(visual, "u_dissolve_amount", 0.0)
+            self._safe_set_shader_input(visual, "u_pulse_speed", 0.0)
+            self._safe_set_shader_input(visual, "u_materialize_progress", 1.0)
             self._safe_set_shader_input(visual, "u_master_enabled", 1.0)
             self._safe_set_shader_input(visual, "u_target_enabled", 1.0)
 
@@ -508,6 +512,7 @@ class ShaderSystem:
             self._safe_set_shader_input(weapon_np, "u_weapon_flash", 0.0)
             self._safe_set_shader_input(weapon_np, "u_fresnel_strength", 0.0)
             self._safe_set_shader_input(weapon_np, "u_recoil_amount", 0.0)
+            self._safe_set_shader_input(weapon_np, "u_ads_amount", 0.0)
             self._safe_set_shader_input(weapon_np, "u_master_enabled", 1.0)
             self._safe_set_shader_input(weapon_np, "u_weapon_enabled", 1.0)
 
@@ -519,25 +524,52 @@ class ShaderSystem:
 
         now = time.time()
         state = self.state
+        materialize_duration = 0.42
+        visible_target_ids = set()
 
         for target in getattr(self.game, "targets", []):
             visual = getattr(target, "visual", None)
             if not visual or visual.isEmpty():
                 continue
-            target_state = self.target_states.get(id(target), {})
+            target_id = id(target)
+            visible_target_ids.add(target_id)
+            is_active = bool(getattr(target, "is_active", True)) and not visual.isHidden()
+            was_active = self.target_visibility.get(target_id)
+            if is_active and was_active is not True:
+                self.target_materialize_started[target_id] = now
+            self.target_visibility[target_id] = is_active
+            if not is_active:
+                continue
+
+            target_state = self.target_states.get(target_id, {})
             hit_flash = 0.0
             hit_until = target_state.get("hit_until", 0.0)
             if hit_until > now:
                 hit_flash = (hit_until - now) / 0.15
-            elif id(target) in self.target_states:
-                self.target_states.pop(id(target), None)
+            elif target_id in self.target_states:
+                self.target_states.pop(target_id, None)
+
+            materialize_progress = 1.0
+            started_at = self.target_materialize_started.get(target_id)
+            if started_at is not None:
+                materialize_progress = max(0.0, min(1.0, (now - started_at) / materialize_duration))
+                if materialize_progress >= 1.0:
+                    self.target_materialize_started.pop(target_id, None)
+
             self._safe_set_shader_input(visual, "u_time", now)
             self._safe_set_shader_input(visual, "u_hit_flash", hit_flash * state["target_hit_flash"])
             self._safe_set_shader_input(visual, "u_emissive_strength", state["target_emissive"])
             self._safe_set_shader_input(visual, "u_dissolve_amount", state["target_dissolve_test"])
             self._safe_set_shader_input(visual, "u_pulse_speed", state["target_pulse_speed"])
+            self._safe_set_shader_input(visual, "u_materialize_progress", materialize_progress)
             self._safe_set_shader_input(visual, "u_master_enabled", 1.0 if state["master_enabled"] else 0.0)
             self._safe_set_shader_input(visual, "u_target_enabled", 1.0 if state["target_enabled"] else 0.0)
+
+        stale_target_ids = set(self.target_visibility.keys()) - visible_target_ids
+        for target_id in stale_target_ids:
+            self.target_visibility.pop(target_id, None)
+            self.target_materialize_started.pop(target_id, None)
+            self.target_states.pop(target_id, None)
 
         if self.current_weapon_np and not self.current_weapon_np.isEmpty():
             recoil_amount = min(
@@ -551,6 +583,11 @@ class ShaderSystem:
             self._safe_set_shader_input(self.current_weapon_np, "u_weapon_flash", flash_amount * state["weapon_flash_strength"])
             self._safe_set_shader_input(self.current_weapon_np, "u_fresnel_strength", state["weapon_fresnel"])
             self._safe_set_shader_input(self.current_weapon_np, "u_recoil_amount", recoil_amount)
+            self._safe_set_shader_input(
+                self.current_weapon_np,
+                "u_ads_amount",
+                max(0.0, min(1.0, float(getattr(self.game, "aim_transition", 0.0)))),
+            )
             self._safe_set_shader_input(self.current_weapon_np, "u_master_enabled", 1.0 if state["master_enabled"] else 0.0)
             self._safe_set_shader_input(self.current_weapon_np, "u_weapon_enabled", 1.0 if state["weapon_enabled"] else 0.0)
 
@@ -560,6 +597,8 @@ class ShaderSystem:
             y_size = max(1, int(window_props.getYSize()))
             current_speed = getattr(self.game, "horizontal_velocity", Vec4(0, 0, 0, 0)).length()
             speed_factor = min(1.0, current_speed / 25.0)
+            ads_factor = max(0.0, min(1.0, float(getattr(self.game, "aim_transition", 0.0))))
+            combo_factor = max(0.0, min(1.0, float(getattr(self.game, "combo_multiplier", 1.0)) - 1.0))
             hit_factor = 0.0
             if self.hit_tint_until > now:
                 hit_factor = (self.hit_tint_until - now) / 0.12
@@ -575,6 +614,9 @@ class ShaderSystem:
             ok &= self._safe_set_shader_input(self.post_quad, "u_hit_tint_strength", hit_factor * state["post_hit_tint"] if self.post_stage_applied >= 3 else 0.0)
             ok &= self._safe_set_shader_input(self.post_quad, "u_speed_strength", speed_factor * state["post_speed_strength"] if self.post_stage_applied >= 3 else 0.0)
             ok &= self._safe_set_shader_input(self.post_quad, "u_texel_size", Vec2(1.0 / x_size, 1.0 / y_size))
+            ok &= self._safe_set_shader_input(self.post_quad, "u_time", now)
+            ok &= self._safe_set_shader_input(self.post_quad, "u_ads_amount", ads_factor if self.post_stage_applied >= 3 else 0.0)
+            ok &= self._safe_set_shader_input(self.post_quad, "u_combo_amount", combo_factor if self.post_stage_applied >= 3 else 0.0)
             if not ok:
                 print("[ShaderSystem] Disabling fullscreen postprocess due to shader input mismatch")
                 self.postprocess_supported = False

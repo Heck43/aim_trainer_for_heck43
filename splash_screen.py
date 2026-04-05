@@ -5,10 +5,12 @@ from direct.interval.IntervalGlobal import Sequence, Parallel, LerpColorScaleInt
 from panda3d.core import TextNode, TransparencyAttrib, Vec4, NodePath, Vec3, WindowProperties, CardMaker
 from direct.gui.DirectFrame import DirectFrame
 import random
+from menu_system.ui_helpers import get_resolution_ui_scale
 
 class SplashScreen:
     def __init__(self, game):
         self.game = game
+        self.ui_root = game.a2dBackground.attachNewNode("splash_ui_root")
         
         # Set up window properties for splash screen
         props = WindowProperties()
@@ -40,7 +42,7 @@ class SplashScreen:
             image="assets/author_logo.jpg",
             pos=(0, 0, 0.15),
             scale=0.25,
-            parent=game.a2dBackground
+            parent=self.ui_root
         )
         self.author_logo.setTransparency(TransparencyAttrib.MAlpha)
         self.author_logo.setColorScale(1, 1, 1, 0)
@@ -53,7 +55,7 @@ class SplashScreen:
             fg=(0.9, 0.9, 0.95, 1),  # Светло-серый, почти белый
             align=TextNode.ACenter,
             mayChange=False,
-            parent=game.a2dBackground,
+            parent=self.ui_root,
             font=None  # Используем стандартный шрифт
         )
         self.author_name.setTransparency(TransparencyAttrib.MAlpha)
@@ -67,7 +69,7 @@ class SplashScreen:
             fg=(1, 1, 1, 1),
             align=TextNode.ACenter,
             mayChange=False,
-            parent=game.a2dBackground,
+            parent=self.ui_root,
             font=None
         )
         self.game_title.setTransparency(TransparencyAttrib.MAlpha)
@@ -81,7 +83,7 @@ class SplashScreen:
             fg=(0.7, 0.7, 0.8, 1),
             align=TextNode.ACenter,
             mayChange=False,
-            parent=game.a2dBackground,
+            parent=self.ui_root,
             font=None
         )
         self.subtitle.setTransparency(TransparencyAttrib.MAlpha)
@@ -95,7 +97,7 @@ class SplashScreen:
             fg=(0.8, 0.8, 0.9, 1),
             align=TextNode.ACenter,
             mayChange=True,
-            parent=game.a2dBackground
+            parent=self.ui_root
         )
         self.loading_text.setTransparency(TransparencyAttrib.MAlpha)
         self.loading_text.setColorScale(0.8, 0.8, 0.9, 0)
@@ -106,7 +108,7 @@ class SplashScreen:
             frameColor=(0.15, 0.15, 0.25, 0.3),  # Полупрозрачный
             frameSize=(-0.4, 0.4, -0.008, 0.008),
             pos=(0, 0, -0.45),
-            parent=game.a2dBackground
+            parent=self.ui_root
         )
         self.progress_bg.setTransparency(TransparencyAttrib.MAlpha)
         self.progress_bg.setColorScale(0.15, 0.15, 0.25, 0)
@@ -116,7 +118,7 @@ class SplashScreen:
             frameColor=(0.85, 0.85, 0.95, 1),  # Светлый, элегантный
             frameSize=(0, 0.8, -0.006, 0.006),
             pos=(-0.4, 0, -0.45),
-            parent=game.a2dBackground
+            parent=self.ui_root
         )
         self.progress_fill.setTransparency(TransparencyAttrib.MAlpha)
         self.progress_fill.setColorScale(0.85, 0.85, 0.95, 0)
@@ -135,7 +137,15 @@ class SplashScreen:
         ] + self.snowflakes
         
         # Запускаем анимацию снега
+        self.update_layout()
         self.snow_task = game.taskMgr.add(self.update_snow, 'snow_task')
+
+    def get_splash_ui_scale(self):
+        return get_resolution_ui_scale(self.game, base_width=1024, base_height=576, min_scale=0.42, max_scale=1.0)
+
+    def update_layout(self):
+        if self.ui_root and not self.ui_root.isEmpty():
+            self.ui_root.setScale(self.get_splash_ui_scale())
 
     def create_snowflakes(self, count):
         """Создаем падающие снежинки"""
@@ -424,6 +434,8 @@ class SplashScreen:
             if not element.isEmpty():
                 element.removeNode()
         self.elements.clear()
+        if hasattr(self, 'ui_root') and self.ui_root and not self.ui_root.isEmpty():
+            self.ui_root.removeNode()
 
     def show_main_menu(self):
         """Show the main menu after splash screen"""

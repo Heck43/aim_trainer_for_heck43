@@ -41,11 +41,44 @@ class NetworkClient:
         self.last_ping_time = 0
         self.next_shot_id = 1
         self.local_server_score = 0
+        self.server_time_offset = 0.0
+        self.local_player_state = self._make_default_local_state()
 
         self.targets_state = {"targets": [], "revision": -1, "server_time": 0}
         self.latest_targets_snapshot = None
         self.shot_results_queue = []
         self.chat_queue = []
+
+    def _make_default_local_state(self) -> dict:
+        return {
+            "id": self.player_id,
+            "name": self.player_name,
+            "pos": [0.0, 0.0, 1.8],
+            "heading": 0.0,
+            "pitch": 0.0,
+            "weapon": "pistol",
+            "shooting": False,
+            "score": 0,
+            "hp": 100,
+            "max_hp": 100,
+            "alive": True,
+            "respawn_at": 0.0,
+            "kills": 0,
+            "deaths": 0,
+        }
+
+    def _update_server_time_offset(self, server_time: float):
+        try:
+            server_time = float(server_time)
+        except (TypeError, ValueError):
+            return
+        if server_time <= 0:
+            return
+        observed_offset = server_time - time.time()
+        if abs(self.server_time_offset) <= 1e-6:
+            self.server_time_offset = observed_offset
+        else:
+            self.server_time_offset = (self.server_time_offset * 0.8) + (observed_offset * 0.2)
 
     def connect(self, server_ip: str, port: int = 7777, player_name: str = "Player"):
         self.player_name = player_name
@@ -55,11 +88,25 @@ class NetworkClient:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.socket.setblocking(False)
 
-            connect_msg = Protocol.create_connect_message(self.player_name, self.player_id)
+            # Получаем хитбоксы для отправки на сервер
+            hitboxes = None
+            try:
+                from multiplayer.player_model import RemotePlayerModel
+                hitboxes = RemotePlayerModel.preload_hitboxes(self.game)
+                print(f"[NetworkClient] Отправляем хитбоксы на сервер")
+            except Exception as e:
+                print(f"[NetworkClient] Не удалось получить хитбоксы: {e}")
+
+            connect_msg = Protocol.create_connect_message(self.player_name, self.player_id, hitboxes)
             self.socket.sendto(Protocol.encode(connect_msg), self.server_address)
 
             self.connected = True
             self.running = True
+            with self.state_lock:
+                self.local_server_score = 0
+                self.server_time_offset = 0.0
+                self.next_shot_id = 1
+                self.local_player_state = self._make_default_local_state()
 
             self.receive_thread = threading.Thread(target=self.receive_loop, daemon=True)
             self.receive_thread.start()
@@ -90,6 +137,9 @@ class NetworkClient:
 
             with self.state_lock:
                 self.remote_players.clear()
+                self.local_server_score = 0
+                self.server_time_offset = 0.0
+                self.local_player_state = self._make_default_local_state()
                 self.targets_state = {"targets": [], "revision": -1, "server_time": 0}
                 self.latest_targets_snapshot = None
                 self.shot_results_queue.clear()
@@ -204,15 +254,20 @@ class NetworkClient:
 
     def handle_game_state(self, message: dict):
         with self.state_lock:
+            self._update_server_time_offset(message.get("timestamp", 0))
             self.game_state = message
             self.game_phase = message.get("phase", "waiting")
             self.time_remaining = message.get("time_remaining", 0)
             players = message.get("players", [])
             self.remote_players = {p["id"]: p for p in players if p.get("id") != self.player_id}
+            local_state = None
             for player in players:
                 if player.get("id") == self.player_id:
                     self.local_server_score = int(player.get("score", self.local_server_score))
+                    local_state = dict(player)
                     break
+            if local_state is not None:
+                self.local_player_state = local_state
 
     def handle_game_start(self, message: dict):
         duration = message.get("duration", 60)
@@ -235,10 +290,25 @@ class NetworkClient:
 
     def handle_shot_result(self, message: dict):
         with self.state_lock:
+            self._update_server_time_offset(message.get("server_time", 0))
             self.shot_results_queue.append(message)
+            if message.get("shooter_id") == self.player_id:
+                self.local_server_score = int(message.get("new_score", self.local_server_score))
+                self.local_player_state["score"] = self.local_server_score
+                if message.get("kill"):
+                    self.local_player_state["kills"] = int(self.local_player_state.get("kills", 0)) + 1
+            if message.get("victim_id") == self.player_id:
+                victim_hp = message.get("victim_hp")
+                if victim_hp is not None:
+                    self.local_player_state["hp"] = int(victim_hp)
+                if "victim_alive" in message:
+                    self.local_player_state["alive"] = bool(message.get("victim_alive"))
+                    if not self.local_player_state["alive"] and message.get("kill"):
+                        self.local_player_state["deaths"] = int(self.local_player_state.get("deaths", 0)) + 1
 
     def handle_targets_state(self, message: dict):
         with self.state_lock:
+            self._update_server_time_offset(message.get("server_time", 0))
             revision = int(message.get("revision", -1))
             current_revision = int(self.targets_state.get("revision", -1))
             if revision <= current_revision:
@@ -252,6 +322,7 @@ class NetworkClient:
 
     def handle_chat(self, message: dict):
         with self.state_lock:
+            self._update_server_time_offset(message.get("server_time", 0))
             self.chat_queue.append(message)
 
     def consume_latest_targets_snapshot(self):
@@ -291,6 +362,14 @@ class NetworkClient:
     def get_local_server_score(self) -> int:
         with self.state_lock:
             return self.local_server_score
+
+    def get_local_player_state(self) -> dict:
+        with self.state_lock:
+            return self.local_player_state.copy()
+
+    def get_estimated_server_time(self) -> float:
+        with self.state_lock:
+            return time.time() + self.server_time_offset
 
     def get_scoreboard(self) -> list:
         with self.state_lock:

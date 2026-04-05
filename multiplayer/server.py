@@ -74,6 +74,26 @@ WEAPON_CONFIG = {
     "dual_revolvers": {"cooldown": 0.1, "damage": 20},
 }
 
+PLAYER_PART_OFFSETS = {
+    "target_head": (0.0, 0.0, 0.00, 0.32),
+    "target_body": (0.0, 0.0, -0.70, 0.50),
+    "target_left_arm": (-0.55, 0.0, -0.70, 0.26),
+    "target_right_arm": (0.55, 0.0, -0.70, 0.26),
+    "target_legs": (0.0, 0.0, -1.45, 0.42),
+}
+
+PLAYER_SPAWN_POINTS = [
+    (-10.0, -10.0, 1.8),
+    (10.0, -10.0, 1.8),
+    (-10.0, 0.0, 1.8),
+    (10.0, 0.0, 1.8),
+    (-10.0, 10.0, 1.8),
+    (10.0, 10.0, 1.8),
+]
+
+PLAYER_MAX_HP = 100
+PLAYER_RESPAWN_DELAY = 3.0
+
 
 def _vec3(v, fallback=(0.0, 1.0, 0.0)):
     if not isinstance(v, (list, tuple)) or len(v) != 3:
@@ -118,7 +138,7 @@ class TargetState:
 class Player:
     """Player state stored on server."""
 
-    def __init__(self, player_id: str, name: str, address: tuple):
+    def __init__(self, player_id: str, name: str, address: tuple, hitboxes: dict = None):
         self.player_id = player_id
         self.name = name
         self.address = address
@@ -131,6 +151,16 @@ class Player:
         self.last_update = time.time()
         self.ping = 0
         self.last_shot_time = 0.0
+        self.max_hp = PLAYER_MAX_HP
+        self.hp = self.max_hp
+        self.alive = True
+        self.respawn_at = 0.0
+        self.kills = 0
+        self.deaths = 0
+        self.last_spawn_index = None
+
+        # Хитбоксы игрока (если не переданы, используем дефолтные)
+        self.hitboxes = hitboxes if hitboxes else PLAYER_PART_OFFSETS.copy()
 
     def to_dict(self):
         return {
@@ -142,6 +172,12 @@ class Player:
             "weapon": self.weapon,
             "shooting": self.shooting,
             "score": self.score,
+            "hp": self.hp,
+            "max_hp": self.max_hp,
+            "alive": self.alive,
+            "respawn_at": self.respawn_at,
+            "kills": self.kills,
+            "deaths": self.deaths,
         }
 
 
@@ -349,6 +385,10 @@ class GameServer:
                             target.variant = self.target_mode
                             self.state_revision += 1
 
+                    for player in self.players.values():
+                        if not player.alive and player.respawn_at > 0 and now >= player.respawn_at:
+                            self._spawn_player(player, avoid_last=True)
+
                 time.sleep(0.05)
             except Exception as exc:
                 if self.running:
@@ -395,11 +435,54 @@ class GameServer:
                 return
 
             if player_id not in self.players:
-                self.players[player_id] = Player(player_id, name, address)
+                # Получаем хитбоксы от клиента
+                hitboxes = message.get("hitboxes")
+
+                # Валидируем хитбоксы если они есть
+                if hitboxes:
+                    if self._validate_hitboxes(hitboxes):
+                        self.log(f"Player \"{name}\" connected with custom hitboxes")
+                    else:
+                        self.log(f"Player \"{name}\" sent invalid hitboxes, using defaults")
+                        hitboxes = None
+
+                self.players[player_id] = Player(player_id, name, address, hitboxes)
+                self._spawn_player(self.players[player_id], avoid_last=False)
                 self.processed_shots[player_id] = set()
                 self.log(f"Player \"{name}\" connected from {address[0]}:{address[1]}")
 
         self.print_players()
+
+    def _validate_hitboxes(self, hitboxes: dict, max_radius: float = 2.0) -> bool:
+        """Валидирует хитбоксы чтобы предотвратить читы"""
+        if not isinstance(hitboxes, dict):
+            return False
+
+        required_parts = ["target_head", "target_body", "target_left_arm",
+                         "target_right_arm", "target_legs"]
+
+        for part in required_parts:
+            if part not in hitboxes:
+                return False
+
+            hitbox = hitboxes[part]
+            if not isinstance(hitbox, (list, tuple)) or len(hitbox) != 4:
+                return False
+
+            try:
+                x, y, z, radius = float(hitbox[0]), float(hitbox[1]), float(hitbox[2]), float(hitbox[3])
+            except (ValueError, TypeError):
+                return False
+
+            # Проверяем что радиус разумный
+            if radius <= 0 or radius > max_radius:
+                return False
+
+            # Проверяем что позиция не слишком далеко от центра
+            if abs(x) > 5.0 or abs(y) > 5.0 or abs(z) > 5.0:
+                return False
+
+        return True
 
     def handle_disconnect(self, message: dict):
         player_id = message.get("player_id")
@@ -416,13 +499,19 @@ class GameServer:
             player = self.players.get(player_id)
             if not player:
                 return
+            now = time.time()
+            player.last_update = now
+            player.address = address
+            if not player.alive:
+                player.shooting = False
+                return
             player.pos = _vec3(message.get("pos"), player.pos)
             player.heading = float(message.get("heading", player.heading))
             player.pitch = float(message.get("pitch", player.pitch))
             player.weapon = str(message.get("weapon", player.weapon))
             player.shooting = bool(message.get("shooting", player.shooting))
             # score is authoritative on server; ignore client score
-            player.last_update = time.time()
+            player.last_update = now
             player.address = address
 
     def handle_heartbeat(self, message: dict, address: tuple):
@@ -450,6 +539,25 @@ class GameServer:
             1.0,
         ]
 
+    def _choose_player_spawn(self, avoid_index=None):
+        available = list(range(len(PLAYER_SPAWN_POINTS)))
+        if avoid_index in available and len(available) > 1:
+            available.remove(avoid_index)
+        spawn_index = random.choice(available)
+        spawn = PLAYER_SPAWN_POINTS[spawn_index]
+        return spawn_index, [float(spawn[0]), float(spawn[1]), float(spawn[2])]
+
+    def _spawn_player(self, player: Player, avoid_last: bool = True):
+        avoid_index = player.last_spawn_index if avoid_last else None
+        spawn_index, spawn_pos = self._choose_player_spawn(avoid_index)
+        player.last_spawn_index = spawn_index
+        player.pos = spawn_pos
+        player.hp = player.max_hp
+        player.alive = True
+        player.respawn_at = 0.0
+        player.shooting = False
+        player.last_shot_time = 0.0
+
     def _create_targets(self):
         self.targets.clear()
         self.next_target_id = 1
@@ -475,7 +583,9 @@ class GameServer:
 
             for player in self.players.values():
                 player.score = 0
-                player.last_shot_time = 0.0
+                player.kills = 0
+                player.deaths = 0
+                self._spawn_player(player, avoid_last=True)
             self._create_targets()
 
             addresses = [p.address for p in self.players.values()]
@@ -532,24 +642,25 @@ class GameServer:
             self.log(f"Player \"{name}\" not found")
 
     def _ray_sphere_hit(self, origin, direction, center, radius):
-        oc = [center[0] - origin[0], center[1] - origin[1], center[2] - origin[2]]
-        t = _dot(oc, direction)
+        oc = [origin[0] - center[0], origin[1] - center[1], origin[2] - center[2]]
+        b = _dot(oc, direction)
+        c = _dot(oc, oc) - (radius * radius)
+        discriminant = (b * b) - c
+        if discriminant < 0:
+            return None
+        sqrt_discriminant = discriminant ** 0.5
+        t = -b - sqrt_discriminant
+        if t < 0:
+            t = -b + sqrt_discriminant
         if t < 0:
             return None
-        closest = [
+        return [
             origin[0] + direction[0] * t,
             origin[1] + direction[1] * t,
             origin[2] + direction[2] * t,
         ]
-        dx = closest[0] - center[0]
-        dy = closest[1] - center[1]
-        dz = closest[2] - center[2]
-        dist_sq = dx * dx + dy * dy + dz * dz
-        if dist_sq > radius * radius:
-            return None
-        return closest
 
-    def _resolve_hit(self, origin, direction):
+    def _resolve_target_hit(self, origin, direction):
         best = None
         for target in self.targets.values():
             if not target.alive:
@@ -567,12 +678,49 @@ class GameServer:
                 distance = (dx * dx + dy * dy + dz * dz) ** 0.5
                 if best is None or distance < best["distance"]:
                     best = {
+                        "hit_type": "target",
                         "target": target,
                         "part": part,
                         "hit_pos": hit_pos,
                         "distance": distance,
                     }
         return best
+
+    def _resolve_player_hit(self, shooter_id, origin, direction):
+        best = None
+        for player_id, player in self.players.items():
+            if player_id == shooter_id or not player.alive:
+                continue
+            px, py, pz = player.pos
+            # Используем хитбоксы конкретного игрока вместо глобальных
+            for part, offset in player.hitboxes.items():
+                ox, oy, oz, radius = offset
+                center = [px + ox, py + oy, pz + oz]
+                hit_pos = self._ray_sphere_hit(origin, direction, center, radius)
+                if hit_pos is None:
+                    continue
+                dx = hit_pos[0] - origin[0]
+                dy = hit_pos[1] - origin[1]
+                dz = hit_pos[2] - origin[2]
+                distance = (dx * dx + dy * dy + dz * dz) ** 0.5
+                if best is None or distance < best["distance"]:
+                    best = {
+                        "hit_type": "player",
+                        "player": player,
+                        "part": part,
+                        "hit_pos": hit_pos,
+                        "distance": distance,
+                    }
+        return best
+
+    def _resolve_hit(self, shooter_id, origin, direction):
+        target_hit = self._resolve_target_hit(origin, direction)
+        player_hit = self._resolve_player_hit(shooter_id, origin, direction)
+        if target_hit and player_hit:
+            if player_hit["distance"] < target_hit["distance"]:
+                return player_hit
+            return target_hit
+        return player_hit or target_hit
 
     def handle_shot(self, message: dict, address: tuple):
         now = time.time()
@@ -607,19 +755,23 @@ class GameServer:
             weapon_cfg = WEAPON_CONFIG.get(weapon, WEAPON_CONFIG["pistol"])
             min_interval = float(weapon_cfg["cooldown"])
 
+            if not player.alive:
+                return
+
             if now - player.last_shot_time < min_interval * 0.95:
                 return
             player.last_shot_time = now
 
             origin = _vec3(message.get("origin"), player.pos)
             direction = _normalize(_vec3(message.get("dir"), (0.0, 1.0, 0.0)))
-            resolved = self._resolve_hit(origin, direction)
+            resolved = self._resolve_hit(player_id, origin, direction)
 
             if not resolved:
                 shot_result = Protocol.create_shot_result(
                     shot_id=shot_id,
                     shooter_id=player_id,
                     hit=False,
+                    hit_type="none",
                     target_id=None,
                     part=None,
                     damage=0,
@@ -631,31 +783,66 @@ class GameServer:
                     server_time=now,
                 )
             else:
-                target = resolved["target"]
                 part = resolved["part"]
                 hit_pos = resolved["hit_pos"]
                 base_damage = weapon_cfg["damage"]
                 damage = int(base_damage * PART_MULTIPLIERS.get(part, 0.0))
-                score_delta = damage
-                player.score += score_delta
-                target.alive = False
-                target.respawn_at = now + self.target_respawn_delay
-                target.last_hit_by = player_id
-                self.state_revision += 1
-                shot_result = Protocol.create_shot_result(
-                    shot_id=shot_id,
-                    shooter_id=player_id,
-                    hit=True,
-                    target_id=target.target_id,
-                    part=part,
-                    damage=damage,
-                    score_delta=score_delta,
-                    new_score=player.score,
-                    hit_pos=hit_pos,
-                    origin=origin,
-                    direction=direction,
-                    server_time=now,
-                )
+                hit_type = resolved.get("hit_type", "none")
+                if hit_type == "player":
+                    victim = resolved["player"]
+                    victim.hp = max(0, int(victim.hp - damage))
+                    kill = victim.hp <= 0
+                    score_delta = damage + (100 if kill else 0)
+                    player.score += score_delta
+                    if kill:
+                        victim.alive = False
+                        victim.respawn_at = now + PLAYER_RESPAWN_DELAY
+                        victim.shooting = False
+                        victim.deaths += 1
+                        player.kills += 1
+                    shot_result = Protocol.create_shot_result(
+                        shot_id=shot_id,
+                        shooter_id=player_id,
+                        hit=True,
+                        hit_type="player",
+                        target_id=None,
+                        part=part,
+                        damage=damage,
+                        score_delta=score_delta,
+                        new_score=player.score,
+                        victim_id=victim.player_id,
+                        victim_name=victim.name,
+                        victim_hp=victim.hp,
+                        victim_alive=victim.alive,
+                        kill=kill,
+                        hit_pos=hit_pos,
+                        origin=origin,
+                        direction=direction,
+                        server_time=now,
+                    )
+                else:
+                    target = resolved["target"]
+                    score_delta = damage
+                    player.score += score_delta
+                    target.alive = False
+                    target.respawn_at = now + self.target_respawn_delay
+                    target.last_hit_by = player_id
+                    self.state_revision += 1
+                    shot_result = Protocol.create_shot_result(
+                        shot_id=shot_id,
+                        shooter_id=player_id,
+                        hit=True,
+                        hit_type="target",
+                        target_id=target.target_id,
+                        part=part,
+                        damage=damage,
+                        score_delta=score_delta,
+                        new_score=player.score,
+                        hit_pos=hit_pos,
+                        origin=origin,
+                        direction=direction,
+                        server_time=now,
+                    )
 
         self.broadcast_message(shot_result)
 
@@ -689,6 +876,10 @@ class GameServer:
                     "name": p.name,
                     "score": p.score,
                     "ping": p.ping,
+                    "hp": p.hp,
+                    "alive": p.alive,
+                    "kills": p.kills,
+                    "deaths": p.deaths,
                 }
                 for p in self.players.values()
             ]
