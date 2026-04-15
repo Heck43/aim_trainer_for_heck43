@@ -35,4 +35,4 @@ class ControlsTab(BaseTab):
         """Обновляет чувствительность мыши"""
         value = self.sensitivity_slider['value']
         self.game.mouse_sensitivity = value
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()

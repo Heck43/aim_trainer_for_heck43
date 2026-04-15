@@ -14,16 +14,12 @@ class RemotePlayerModel:
     PLAYER_HITBOXES = {
         "target_head": (0.0, 0.0, 0.00, 0.32),
         "target_body": (0.0, 0.0, -0.70, 0.50),
-        "target_left_arm": (-0.55, 0.0, -0.70, 0.26),
-        "target_right_arm": (0.55, 0.0, -0.70, 0.26),
         "target_legs": (0.0, 0.0, -1.45, 0.42),
     }
 
     HITBOX_COLORS = {
         "target_head": (1.0, 0.25, 0.25, 0.35),
         "target_body": (1.0, 0.85, 0.25, 0.25),
-        "target_left_arm": (0.25, 0.85, 1.0, 0.25),
-        "target_right_arm": (0.25, 0.85, 1.0, 0.25),
         "target_legs": (0.35, 1.0, 0.35, 0.25),
     }
     """3D модель удаленного игрока"""

@@ -149,7 +149,7 @@ class LobbyMenu:
             text_fg=(1, 1, 1, 1),
             initialText="7777"
         )
-        
+
         # Статус подключения
         self.status_label = DirectLabel(
             text="Not connected",
@@ -168,7 +168,7 @@ class LobbyMenu:
             parent=self.frame,
             **label_style
         )
-        
+
         # Фрейм для списка игроков
         self.players_frame = DirectFrame(
             frameColor=(0.1, 0.1, 0.15, 0.9),
@@ -255,10 +255,24 @@ class LobbyMenu:
     def button_hover_start(self, button, event):
         """Эффект при наведении"""
         LerpColorScaleInterval(button, 0.15, (1.15, 1.15, 1.15, 1)).start()
-    
+
     def button_hover_end(self, button, event):
         """Эффект при отведении"""
         LerpColorScaleInterval(button, 0.15, (1, 1, 1, 1)).start()
+
+    def select_mode(self, mode: str):
+        """Выбор режима игры"""
+        self.selected_mode = mode
+        if mode == "hybrid":
+            self.hybrid_button['frameColor'] = (0.2, 0.4, 0.9, 0.9)
+            self.hybrid_button['text_fg'] = (0.95, 0.95, 0.95, 1)
+            self.pvp_button['frameColor'] = (0.15, 0.15, 0.2, 0.7)
+            self.pvp_button['text_fg'] = (0.7, 0.7, 0.7, 1)
+        else:
+            self.pvp_button['frameColor'] = (0.9, 0.3, 0.3, 0.9)
+            self.pvp_button['text_fg'] = (0.95, 0.95, 0.95, 1)
+            self.hybrid_button['frameColor'] = (0.15, 0.15, 0.2, 0.7)
+            self.hybrid_button['text_fg'] = (0.7, 0.7, 0.7, 1)
     
     def show(self):
         """Показывает меню"""

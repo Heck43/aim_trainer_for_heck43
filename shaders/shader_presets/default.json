@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "name": "default",
+  "state": {
+    "master_enabled": true,
+    "target_enabled": true,
+    "weapon_enabled": true,
+    "post_enabled": false,
+    "volumes_enabled": false,
+    "debug_views_enabled": false,
+    "post_debug_stage": 0.0,
+    "target_hit_flash": 1.25,
+    "target_emissive": 0.35,
+    "target_pulse_speed": 1.25,
+    "target_dissolve_test": 0.0,
+    "weapon_fresnel": 0.9,
+    "weapon_flash_strength": 1.2,
+    "post_vignette": 0.28,
+    "post_contrast": 1.08,
+    "post_saturation": 1.05,
+    "post_sharpen": 0.15,
+    "post_hit_tint": 0.3,
+    "post_speed_strength": 0.15
+  }
+}

@@ -84,7 +84,7 @@ class WeaponTab(BaseTab):
         
         self.game.settings['weapon_position']['x'] = self.x_slider['value']
         messenger.send('update_weapon_position')
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()
     
     def update_y_position(self):
         """Обновляет Y позицию оружия"""
@@ -93,7 +93,7 @@ class WeaponTab(BaseTab):
         
         self.game.settings['weapon_position']['y'] = self.y_slider['value']
         messenger.send('update_weapon_position')
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()
     
     def update_z_position(self):
         """Обновляет Z позицию оружия"""
@@ -102,7 +102,7 @@ class WeaponTab(BaseTab):
         
         self.game.settings['weapon_position']['z'] = self.z_slider['value']
         messenger.send('update_weapon_position')
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()
     
     def reset_position(self):
         """Сбрасывает позицию оружия"""
@@ -113,4 +113,4 @@ class WeaponTab(BaseTab):
         self.z_slider['value'] = self.game.settings['weapon_position']['z']
         
         messenger.send('update_weapon_position')
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()

@@ -87,13 +87,13 @@ class AudioTab(BaseTab):
     
     def toggle_music(self, enabled):
         """Переключает музыку"""
-        self.game.toggle_music(enabled)
-    
+        self.game.audio_manager.toggle_music(enabled)
+
     def update_music_volume(self):
         """Обновляет громкость музыки"""
         volume = self.volume_slider['value']
-        self.game.update_music_volume(volume)
-    
+        self.game.audio_manager.update_music_volume(volume)
+
     def change_music_track(self, track_name):
         """Меняет трек"""
-        self.game.change_music_track(track_name)
+        self.game.audio_manager.change_music_track(track_name)

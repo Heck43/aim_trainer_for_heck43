@@ -275,13 +275,13 @@ class SplashScreen:
         
         # Обновляем текст
         self.loading_text.setText(resource_name.lower())
-        print(f"📦 {resource_name}...")
-        
+        print(f"Loading {resource_name}...")
+
         # Загружаем ресурс
         try:
             resource_func()
         except Exception as e:
-            print(f"⚠️ Ошибка загрузки {resource_name}: {e}")
+            print(f"Warning: Error loading {resource_name}: {e}")
         
         # Обновляем прогресс
         self.current_resource += 1
@@ -324,19 +324,19 @@ class SplashScreen:
                             # Сохраняем шрифт по имени (без расширения)
                             font_name = font_file.replace('.ttf', '')
                             self.game.font_cache[font_name] = font
-                            print(f"✅ Загружен шрифт: {font_name}")
+                            print(f"OK: Загружен шрифт: {font_name}")
                     except Exception as e:
-                        print(f"⚠️ Не удалось загрузить {font_file}: {e}")
+                        print(f"Warning: Не удалось загрузить {font_file}: {e}")
                 
                 # Список доступных шрифтов для настроек
                 self.game.available_fonts = ['Default'] + list(self.game.font_cache.keys())
-                print(f"✅ Всего шрифтов загружено: {len(self.game.font_cache)}")
+                print(f"OK: Всего шрифтов загружено: {len(self.game.font_cache)}")
             else:
-                print("⚠️ Папка fonts не найдена")
+                print("Warning: Папка fonts не найдена")
                 self.game.available_fonts = ['Default']
                 
         except Exception as e:
-            print(f"⚠️ Ошибка загрузки шрифтов: {e}")
+            print(f"Warning: Ошибка загрузки шрифтов: {e}")
             self.game.available_fonts = ['Default']
 
     def load_sounds(self):
@@ -358,24 +358,24 @@ class SplashScreen:
                     sound = self.game.loader.loadSfx(sound_path)
                     if sound:
                         self.game.sound_cache[sound_path] = sound
-                        print(f"✅ Загружен звук: {sound_path}")
+                        print(f"OK: Загружен звук: {sound_path}")
                 except Exception as e:
-                    print(f"⚠️ Не удалось загрузить {sound_path}: {e}")
+                    print(f"Warning: Не удалось загрузить {sound_path}: {e}")
                     
         except Exception as e:
-            print(f"⚠️ Ошибка загрузки звуков: {e}")
+            print(f"Warning: Ошибка загрузки звуков: {e}")
 
     def load_textures(self):
         """Прегружаем текстуры если включен NSFW режим"""
         try:
             if self.game.settings.get('show_target_images', False):
-                from target import Target
+                from managers.target import Target
                 category = self.game.settings.get('nsfw_category', 'furry')
                 Target.preload_category(self.game, category)
             from multiplayer.player_model import RemotePlayerModel
             RemotePlayerModel.preload_main_model(self.game)
         except Exception as e:
-            print(f"⚠️ Ошибка загрузки текстур: {e}")
+            print(f"Warning: Ошибка загрузки текстур: {e}")
 
     def init_game(self):
         """Инициализация игровых компонентов"""
@@ -385,15 +385,15 @@ class SplashScreen:
     def prepare_menu(self):
         """Подготовка меню - создаем его здесь!"""
         try:
-            print("🎨 Создаем главное меню...")
+            print("Info: Создаем главное меню...")
             from menu_system.main_menu import MainMenu
             
             # Создаем меню заранее
             if self.game.menu is None:
                 self.game.menu = MainMenu(self.game)
-                print("✅ Главное меню создано!")
+                print("OK: Главное меню создано!")
         except Exception as e:
-            print(f"⚠️ Ошибка создания меню: {e}")
+            print(f"Warning: Ошибка создания меню: {e}")
 
     def finish_loading(self):
         """Завершаем загрузку и переходим к меню"""

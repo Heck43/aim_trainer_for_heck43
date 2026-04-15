@@ -91,11 +91,12 @@ class Protocol:
         }
     
     @staticmethod
-    def create_game_start(duration: int) -> dict:
+    def create_game_start(duration: int, game_mode: str = "pve") -> dict:
         """Создает сообщение о начале игры"""
         return {
             "type": MSG_GAME_START,
             "duration": duration,
+            "game_mode": game_mode,
             "timestamp": time.time()
         }
     

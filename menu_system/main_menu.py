@@ -92,7 +92,7 @@ class MainMenu:
             self.current_resolution = best_res
             self.game.settings['resolution'] = best_res
             self.game.settings['windowed_resolution'] = best_res
-            self.game.save_settings()
+            self.game.settings_manager.save_settings()
         
         return resolutions if resolutions else ['1280x720']
 
@@ -462,7 +462,7 @@ class MainMenu:
                 for button in self.menu_buttons:
                     button.show()
             
-            self.game.save_settings()
+            self.game.settings_manager.save_settings()
     
     def initial_hide(self):
         """Скрываем меню при создании (без анимации)"""

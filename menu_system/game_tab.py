@@ -96,7 +96,7 @@ class GameTab(BaseTab):
     def toggle_bhop(self, status):
         """Переключает bunny hop"""
         self.game.settings['bhop_enabled'] = status
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()
 
     def toggle_hitbox_debug(self, status):
         """РџРµСЂРµРєР»СЋС‡Р°РµС‚ РґРµР±Р°Рі-РѕС‚РѕР±СЂР°Р¶РµРЅРёРµ hitbox-РѕРІ РёРіСЂРѕРєРѕРІ"""
@@ -105,14 +105,14 @@ class GameTab(BaseTab):
     def toggle_recoil(self, status):
         """Переключает отдачу"""
         self.game.settings['recoil_enabled'] = status
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()
     
     def toggle_spread(self, status):
         """Переключает разброс"""
         self.game.settings['spread_enabled'] = status
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()
     
     def set_target_count(self, count):
         """Устанавливает количество манекенов"""
         self.game.settings['target_count'] = int(count)
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()

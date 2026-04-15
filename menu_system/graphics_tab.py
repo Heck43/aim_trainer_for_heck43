@@ -139,14 +139,14 @@ class GraphicsTab(BaseTab):
             props.setFullscreen(True)
             self.game.win.requestProperties(props)
         
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()
         self._refresh_ui_layout()
     
     def update_fov(self):
         """Обновляет FOV"""
         new_fov = int(self.fov_slider['value'])
         self.game.settings['fov'] = new_fov
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()
         base.camLens.setFov(new_fov)
     
     def toggle_fullscreen(self, status):
@@ -165,13 +165,13 @@ class GraphicsTab(BaseTab):
             props.setSize(width, height)
         
         self.game.win.requestProperties(props)
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()
         self._refresh_ui_layout()
     
     def toggle_show_images(self, status):
         """Переключает NSFW режим"""
         self.game.settings['show_target_images'] = status
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()
         
         if status:
             self.nsfw_category_menu.show()
@@ -191,7 +191,7 @@ class GraphicsTab(BaseTab):
     def update_nsfw_category(self, category):
         """Обновляет NSFW категорию"""
         self.game.settings['nsfw_category'] = category
-        self.game.save_settings()
+        self.game.settings_manager.save_settings()
         
         if (hasattr(self.game, 'target_pool') and self.game.target_pool and 
             hasattr(self.game, 'menu') and self.game.menu and 

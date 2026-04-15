@@ -1,0 +1,75 @@
+Traceback (most recent call last):
+  File "C:\Python314\Lib\site-packages\direct\showbase\EventManager.py", line 49, in eventLoopTask
+    self.doEvents()
+    ~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\EventManager.py", line 43, in doEvents
+    processFunc(dequeueFunc())
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\EventManager.py", line 99, in processEvent
+    messenger.send(eventName, paramList)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 337, in send
+    self.__dispatch(acceptorDict, event, sentArgs, foundWatch)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 422, in __dispatch
+    result = method (*(extraArgs + sentArgs))
+  File "C:\Python314\Lib\site-packages\direct\gui\DirectSlider.py", line 135, in commandFunc
+    self['command'](*self['extraArgs'])
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\weapon_tab.py", line 86, in update_x_position
+    messenger.send('update_weapon_position')
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 337, in send
+    self.__dispatch(acceptorDict, event, sentArgs, foundWatch)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 422, in __dispatch
+    result = method (*(extraArgs + sentArgs))
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\main.py", line 884, in update_weapon_position
+    if not hasattr(self, 'weapon') or self.weapon.isEmpty():
+                                      ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'isEmpty'
+:task(error): Exception occurred in PythonTask eventManager
+Traceback (most recent call last):
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\main.py", line 2396, in <module>
+    game.run()
+    ~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\ShowBase.py", line 3331, in run
+    self.taskMgr.run()
+    ~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\task\Task.py", line 553, in run
+    self.step()
+    ~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\task\Task.py", line 504, in step
+    self.mgr.poll()
+    ~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\EventManager.py", line 49, in eventLoopTask
+    self.doEvents()
+    ~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\EventManager.py", line 43, in doEvents
+    processFunc(dequeueFunc())
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\EventManager.py", line 99, in processEvent
+    messenger.send(eventName, paramList)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 337, in send
+    self.__dispatch(acceptorDict, event, sentArgs, foundWatch)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 422, in __dispatch
+    result = method (*(extraArgs + sentArgs))
+  File "C:\Python314\Lib\site-packages\direct\gui\DirectSlider.py", line 135, in commandFunc
+    self['command'](*self['extraArgs'])
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\weapon_tab.py", line 86, in update_x_position
+    messenger.send('update_weapon_position')
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 337, in send
+    self.__dispatch(acceptorDict, event, sentArgs, foundWatch)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 422, in __dispatch
+    result = method (*(extraArgs + sentArgs))
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\main.py", line 884, in update_weapon_position
+    if not hasattr(self, 'weapon') or self.weapon.isEmpty():
+                                      ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'isEmpty'
+
+(.venv) C:\Users\heck43\Desktop\aim_trainer_for_heck43>

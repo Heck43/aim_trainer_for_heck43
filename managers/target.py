@@ -31,13 +31,14 @@ class Target:
             else:
                 base_path = exe_dir
         else:
-            base_path = os.path.dirname(os.path.abspath(__file__))
+            # В режиме разработки - поднимаемся на уровень выше из managers/
+            base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
         category_rel_path = os.path.join('images', 'nsfw', category)
         category_full_path = os.path.join(base_path, category_rel_path)
         
         if not os.path.exists(category_full_path):
-            print(f"⚠️ Папка не найдена: {category_full_path}")
+            print(f"Warning: Папка не найдена: {category_full_path}")
             Target.images_cache[category] = []
             return []
         
@@ -50,9 +51,9 @@ class Target:
                     relative_path = os.path.join(category_rel_path, file).replace('\\', '/')
                     images.append(relative_path)
             
-            print(f"✅ Загружено {len(images)} изображений из категории '{category}'")
+            print(f"OK: Загружено {len(images)} изображений из категории '{category}'")
         except Exception as e:
-            print(f"❌ Ошибка при чтении папки {category_full_path}: {e}")
+            print(f"Error: Ошибка при чтении папки {category_full_path}: {e}")
         
         Target.images_cache[category] = images
         return images
@@ -76,10 +77,10 @@ class Target:
                 if tex:
                     Target.texture_cache[normalized_path] = tex
             except Exception as e:
-                print(f"⚠️ Ошибка предзагрузки текстуры {image_path}: {e}")
+                print(f"Warning: Ошибка предзагрузки текстуры {image_path}: {e}")
         
         Target.category_loaded = True
-        print(f"✅ Предзагружено {len(Target.texture_cache)} текстур для категории '{category}'")
+        print(f"OK: Предзагружено {len(Target.texture_cache)} текстур для категории '{category}'")
 
     def load_texture(self, texture_path):
         """Загружает текстуру с использованием кэша"""
@@ -94,7 +95,7 @@ class Target:
                 Target.texture_cache[normalized_path] = tex
                 return tex
         except Exception as e:
-            print(f"❌ Ошибка загрузки текстуры {normalized_path}: {e}")
+            print(f"Error: Ошибка загрузки текстуры {normalized_path}: {e}")
         return None
 
     def __init__(self, game, pos=None, pooled=False):
@@ -125,19 +126,19 @@ class Target:
     def update_visibility(self):
         """Обновляет видимость манекена в зависимости от настроек"""
         show_images = self.game.settings.get('show_target_images', True)
-        
+
         if show_images:
             if hasattr(self, 'visual'):
                 self.visual.show()
                 self.visual.setTransparency(1)
                 self.visual.setColor(1, 1, 1, 1)
-            
+
             for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
                 np.hide()
         else:
             if hasattr(self, 'visual'):
                 self.visual.hide()
-            
+
             for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
                 np.show()
                 np.setColor(0.8, 0.2, 0.2, 1)
@@ -176,19 +177,21 @@ class Target:
         body_node.addSolid(body_box)
         body_node.setIntoCollideMask(BitMask32.bit(1))
         self.body_np = self.model.attachNewNode(body_node)
-        
+
+        # Левая рука
         left_arm_node = CollisionNode('target_left_arm')
-        left_arm_box = CollisionBox(Point3(-1.0, 0, 1.5), 0.3, 0.3, 0.6)
-        left_arm_node.addSolid(left_arm_box)
+        left_arm_sphere = CollisionSphere(-1.0, 0, 1.5, 0.55)
+        left_arm_node.addSolid(left_arm_sphere)
         left_arm_node.setIntoCollideMask(BitMask32.bit(1))
         self.left_arm_np = self.model.attachNewNode(left_arm_node)
-        
+
+        # Правая рука
         right_arm_node = CollisionNode('target_right_arm')
-        right_arm_box = CollisionBox(Point3(1.0, 0, 1.5), 0.3, 0.3, 0.6)
-        right_arm_node.addSolid(right_arm_box)
+        right_arm_sphere = CollisionSphere(1.0, 0, 1.5, 0.55)
+        right_arm_node.addSolid(right_arm_sphere)
         right_arm_node.setIntoCollideMask(BitMask32.bit(1))
         self.right_arm_np = self.model.attachNewNode(right_arm_node)
-        
+
         legs_node = CollisionNode('target_legs')
         legs_box = CollisionBox(Point3(0, 0, 0.6), 0.7, 0.4, 1.0)
         legs_node.addSolid(legs_box)
@@ -204,27 +207,27 @@ class Target:
         """Активирует цель из пула (показывает, включает коллизии, новая позиция)"""
         self.is_active = True
         self.current_hp = self.max_hp
-        
+
         if hasattr(self, 'model'):
             self.model.show()
-        
+
         for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
             if np.node().isOfType(CollisionNode.getClassType()):
                 np.node().setIntoCollideMask(BitMask32.bit(1))
-        
+
         self.reset_position()
-        
+
         self.reset_texture()
-        
+
         self.update_visibility()
-    
+
     def deactivate(self):
         """Деактивирует цель (скрывает, выключает коллизии)"""
         self.is_active = False
-        
+
         if hasattr(self, 'model'):
             self.model.hide()
-        
+
         for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
             if np.node().isOfType(CollisionNode.getClassType()):
                 np.node().setIntoCollideMask(BitMask32.allOff())
@@ -314,18 +317,18 @@ class Target:
         for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
             np.hide()
         self.disable_collisions()
-        
+
         taskMgr.doMethodLater(3.0, self.restore_target, 'restore_target')
 
     def restore_target(self, task):
         self.current_hp = self.max_hp
         self.is_active = True
-        
+
         show_images = self.game.settings.get('show_target_images', True)
         if show_images:
             category = self.game.settings.get('nsfw_category', 'furry')
             category_images = self.get_images_from_category(category)
-            
+
             if category_images:
                 self.texture_path = random.choice(category_images)
                 tex = self.load_texture(self.texture_path)
@@ -334,12 +337,12 @@ class Target:
                     self.visual.setTransparency(1)
                     self.visual.setBin("transparent", 0)
                     self.visual.setDepthWrite(False)
-        
+
         self.visual.show()
         for np in [self.head_np, self.body_np, self.left_arm_np, self.right_arm_np, self.legs_np]:
             np.show()
         self.enable_collisions()
-        
+
         self.update_visibility()
         return task.done
 
@@ -367,8 +370,8 @@ class Target:
         damages = {
             'target_head': 100,
             'target_body': 60,
-            'target_left_arm': 40,
-            'target_right_arm': 40,
+            'target_left_arm': 45,
+            'target_right_arm': 45,
             'target_legs': 40
         }
         return damages.get(part_name, 0)

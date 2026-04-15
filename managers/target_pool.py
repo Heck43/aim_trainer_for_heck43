@@ -19,7 +19,7 @@ class TargetPool:
     
     def initialize(self, target_class):
         """Инициализирует пул целями"""
-        from target import Target
+        from managers.target import Target
         
         for i in range(self.initial_size):
             target = Target(self.game, pooled=True)
@@ -35,7 +35,7 @@ class TargetPool:
         else:
             # Пул пустой — создаем новую (редкий случай)
             print("[WARN] Target pool empty, creating additional target")
-            from target import Target
+            from managers.target import Target
             target = Target(self.game, pooled=True)
         
         self.in_use.append(target)

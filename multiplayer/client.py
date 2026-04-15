@@ -32,6 +32,7 @@ class NetworkClient:
 
         self.game_state = None
         self.game_phase = "waiting"
+        self.game_mode = "pve"
         self.time_remaining = 0
         self.remote_players = {}
 
@@ -271,8 +272,23 @@ class NetworkClient:
 
     def handle_game_start(self, message: dict):
         duration = message.get("duration", 60)
-        print(f"[Network] Game started! Duration: {duration}s")
+        game_mode = message.get("game_mode", "pve")
+        self.game_mode = game_mode
+        print(f"[Network] Game started! Duration: {duration}s, Mode: {game_mode}")
         self.game_phase = "playing"
+
+        # Переключаем карту на клиенте
+        if hasattr(self.game, "switch_map"):
+            if game_mode == "pvp":
+                self.game.switch_map("pvp")
+            else:
+                # pve режим использует дефолтную карту
+                self.game.switch_map("default")
+
+        # Обновляем режим в игре
+        if hasattr(self.game, "multiplayer_game_mode"):
+            self.game.multiplayer_game_mode = game_mode
+
         if hasattr(self.game, "on_multiplayer_game_start"):
             self.game.on_multiplayer_game_start()
 
@@ -349,6 +365,9 @@ class NetworkClient:
 
     def get_game_phase(self) -> str:
         return self.game_phase
+
+    def get_game_mode(self) -> str:
+        return self.game_mode
 
     def get_time_remaining(self) -> float:
         return self.time_remaining

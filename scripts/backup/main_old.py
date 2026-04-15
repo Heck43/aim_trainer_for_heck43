@@ -15,9 +15,9 @@ if hasattr(sys, 'frozen'):
         # Проверяем наличие libpandagl.dll для отладки
         pandagl_path = os.path.join(internal_dir, 'libpandagl.dll')
         if os.path.exists(pandagl_path):
-            print(f"[OK] Found libpandagl.dll in: {internal_dir}")
+            print(f"✓ Найден libpandagl.dll в: {internal_dir}")
         else:
-            print(f"[WARN] libpandagl.dll NOT found in: {internal_dir}")
+            print(f"✗ libpandagl.dll НЕ найден в: {internal_dir}")
     
     # Также добавляем папку с exe
     paths_to_add.append(exe_dir)
@@ -56,9 +56,9 @@ if hasattr(sys, 'frozen'):
                 if os.path.exists(dll_path):
                     try:
                         ctypes.CDLL(dll_path)
-                        print(f"[OK] Preloaded: {dll_name}")
+                        print(f"✓ Предзагружен: {dll_name}")
                     except Exception as e:
-                        print(f"[ERROR] Failed to load {dll_name}: {e}")
+                        print(f"✗ Ошибка загрузки {dll_name}: {e}")
         except ImportError:
             pass
     
@@ -226,26 +226,15 @@ from direct.task import Task
 from direct.interval.IntervalGlobal import Sequence, Parallel, LerpColorScaleInterval, LerpColorInterval, LerpPosInterval, LerpHprInterval, Wait, Func
 from menu_system import MainMenu
 from menu_system.ui_helpers import get_resolution_ui_scale
-from managers.target import Target
-from menu_system.splash_screen import SplashScreen
-from menu_system.pause_menu import PauseMenu
-from managers.resource_manager import ResourceManager
-from managers.target_pool import TargetPool
+from target import Target
+from splash_screen import SplashScreen
+from pause_menu import PauseMenu
+from resource_manager import ResourceManager
+from target_pool import TargetPool
 from multiplayer.client import NetworkClient
 from multiplayer.player_model import RemotePlayerModel
 from multiplayer.lobby_menu import LobbyMenu
-from shaders.shader_system import ShaderSystem
-from managers.settings_manager import SettingsManager
-from managers.effects_manager import EffectsManager
-from managers.weapons_manager import WeaponsManager
-from managers.movement_manager import MovementManager
-from managers.killfeed_manager import KillfeedManager
-from managers.shell_manager import ShellManager
-from managers.shader_debug_ui import ShaderDebugUI
-from managers.audio_manager import AudioManager
-from managers.chat_manager import ChatManager
-from managers.hud_manager import HudManager
-from managers.weapon_manager_new import WeaponManagerNew
+from shader_system import ShaderSystem
 import random
 import math
 import time
@@ -309,100 +298,7 @@ class Game(ShowBase):
             return self.loader.loadModel(path)
         else:
             return self.loader.loadModel(path)
-
-    def create_pvp_arena(self):
-        """Создает простую арену для PvP режима"""
-        from panda3d.core import CollisionPlane, Plane, Vec3
-
-        arena = NodePath("pvp_arena")
-        arena.reparentTo(self.render)
-
-        # Пол
-        floor = self.safe_load_model("models/box")
-        floor.setScale(30, 30, 0.5)
-        floor.setPos(0, 0, -0.5)
-        floor.setColor(0.3, 0.3, 0.35, 1)
-        floor.reparentTo(arena)
-
-        # Стены
-        wall_height = 5
-        wall_thickness = 1
-
-        # Северная стена
-        north_wall = self.safe_load_model("models/box")
-        north_wall.setScale(30, wall_thickness, wall_height)
-        north_wall.setPos(0, 30, wall_height / 2)
-        north_wall.setColor(0.4, 0.4, 0.45, 1)
-        north_wall.reparentTo(arena)
-
-        # Южная стена
-        south_wall = self.safe_load_model("models/box")
-        south_wall.setScale(30, wall_thickness, wall_height)
-        south_wall.setPos(0, -30, wall_height / 2)
-        south_wall.setColor(0.4, 0.4, 0.45, 1)
-        south_wall.reparentTo(arena)
-
-        # Западная стена
-        west_wall = self.safe_load_model("models/box")
-        west_wall.setScale(wall_thickness, 30, wall_height)
-        west_wall.setPos(-30, 0, wall_height / 2)
-        west_wall.setColor(0.4, 0.4, 0.45, 1)
-        west_wall.reparentTo(arena)
-
-        # Восточная стена
-        east_wall = self.safe_load_model("models/box")
-        east_wall.setScale(wall_thickness, 30, wall_height)
-        east_wall.setPos(30, 0, wall_height / 2)
-        east_wall.setColor(0.4, 0.4, 0.45, 1)
-        east_wall.reparentTo(arena)
-
-        # Укрытия в центре
-        cover1 = self.safe_load_model("models/box")
-        cover1.setScale(3, 3, 2)
-        cover1.setPos(-8, 0, 1)
-        cover1.setColor(0.5, 0.3, 0.3, 1)
-        cover1.reparentTo(arena)
-
-        cover2 = self.safe_load_model("models/box")
-        cover2.setScale(3, 3, 2)
-        cover2.setPos(8, 0, 1)
-        cover2.setColor(0.5, 0.3, 0.3, 1)
-        cover2.reparentTo(arena)
-
-        return arena
-
-    def switch_map(self, map_type: str):
-        """Переключает карту между default и pvp"""
-        if map_type == self.current_map:
-            return
-
-        # Удаляем старую карту
-        if hasattr(self, 'map_model') and self.map_model:
-            self.map_model.removeNode()
-
-        # Загружаем новую карту
-        if map_type == "pvp":
-            self.map_model = self.create_pvp_arena()
-            self.current_map = "pvp"
-        else:
-            self.map_model = self.safe_load_model("assets/xz.egg")
-            self.map_model.reparentTo(self.render)
-            self.map_model.setPos(0, 0, 0)
-            self.map_model.setScale(1)
-            self.current_map = "default"
-
-        # Пересоздаем коллизии
-        map_collision = CollisionNode('map_collision')
-        map_collision_np = NodePath(map_collision)
-        geom_node = self.map_model.find("**/+GeomNode")
-        if not geom_node.isEmpty():
-            geom_node.copyTo(map_collision_np)
-            map_collision_np.reparentTo(self.map_model)
-
-        # Применяем шейдеры к новой карте
-        if hasattr(self, 'shader_system'):
-            self.shader_system.rebind_scene_objects()
-
+    
     def __init__(self):
         ShowBase.__init__(self)
 
@@ -447,7 +343,7 @@ class Game(ShowBase):
                     getModelPath().appendDirectory(panda_path)
                     # Добавляем также в texture-path для поиска текстур
                     loadPrcFileData("", f"texture-path {panda_path}")
-                    print(f"[OK] Added model-path and texture-path: {path}")
+                    print(f"✓ Добавлен model-path и texture-path: {path}")
 
         self.fps = 0
         
@@ -455,11 +351,10 @@ class Game(ShowBase):
         self.cQueue = CollisionHandlerQueue()
         
         try:
-            self.map_model = self.safe_load_model("assets/xz.egg")
+            self.map_model = self.safe_load_model("xz.egg")
             self.map_model.reparentTo(self.render)
             self.map_model.setPos(0, 0, 0)
             self.map_model.setScale(1)
-            self.current_map = "default"
         except Exception as e:
             raise
         
@@ -482,10 +377,37 @@ class Game(ShowBase):
         
         self.disableMouse()
         
-        # Initialize managers
-        self.settings_manager = SettingsManager(self)
-        self.settings = self.settings_manager.settings
-        self.DEFAULT_SETTINGS = self.settings_manager.DEFAULT_SETTINGS
+        self.DEFAULT_SETTINGS = {
+            'sensitivity': 50.0,
+            'fov': 70,
+            'resolution': '1280x720',
+            'fullscreen': True,
+            'show_score': True,
+            'show_timer': True,
+            'volume': 100,
+            'show_target_images': False,
+            'damage_numbers': True,
+            'killfeed': True,
+            'show_fps': True,
+            'recoil_enabled': True,
+            'weapon_position': {
+                'x': 0.25,
+                'y': 0.6,
+                'z': -0.3
+            },
+            'bhop_enabled': True,
+            'audio': {
+                'music_enabled': True,
+                'music_volume': 0.5,
+                'current_track': 'kiss_me_again.mp3'
+            },
+            'target_count': 10,
+            'bullet_traces': True,
+            'spread_enabled': True,
+            'show_hitbox_debug': False,
+        }
+        
+        self.settings = self.load_settings()
         
         self.mouse_sensitivity = self.settings.get('sensitivity', self.DEFAULT_SETTINGS['sensitivity'])
         self.show_score = self.settings.get('show_score', self.DEFAULT_SETTINGS['show_score'])
@@ -502,7 +424,7 @@ class Game(ShowBase):
         self.win.requestProperties(props)
 
         self.resources = ResourceManager(self)
-        print("ResourceManager initialized")
+        print("📦 ResourceManager инициализирован")
         
         self.shader_system = ShaderSystem(self)
         self.shader_system.initialize()
@@ -513,7 +435,6 @@ class Game(ShowBase):
         
         self.network = None
         self.is_multiplayer = False
-        self.multiplayer_game_mode = "pve"
         self.remote_players = {}  # {player_id: RemotePlayerModel}
         self.lobby_menu = None
         self.current_weapon = "pistol"
@@ -526,7 +447,8 @@ class Game(ShowBase):
         self.mp_local_alive = True
         self.mp_local_respawn_at = 0.0
         self.mp_spawn_synced = False
-
+        self.hurt_flash_alpha = 0.0
+        
         self.splash = SplashScreen(self)
         self.splash.start()
 
@@ -536,19 +458,111 @@ class Game(ShowBase):
         self.combo_window = 2.0
         self.start_time = 0
         self.game_time = 0
+        
+        self.score_text = OnscreenText(
+            text="Score: 0",
+            pos=(-1.3, 0.9),
+            fg=(1, 1, 1, 1),
+            align=TextNode.ALeft,
+            scale=0.07,
+            mayChange=True
+        )
+        self.score_text.hide()
+        
+        self.timer_text = OnscreenText(
+            text="Time: 0.0",
+            pos=(-0.0, -0.9),
+            fg=(1, 1, 1, 1),
+            align=TextNode.ACenter,
+            scale=0.07,
+            shadow=(0, 0, 0, 1)
+        )
+        self.timer_text.hide()
 
-        # Initialize HUD manager
-        self.hud_manager = HudManager(self)
+        self.is_chat_active = False
+        self.chat_messages = []
+        self.chat_message_lifetime = 10.0
+        self.chat_last_toggle_time = 0.0
+        self.chat_text = OnscreenText(
+            text="",
+            pos=(-1.28, -0.80),
+            fg=(1, 1, 1, 1),
+            align=TextNode.ALeft,
+            scale=0.04,
+            mayChange=True,
+        )
+        self.chat_text.hide()
 
-        # Initialize chat manager
-        self.chat_manager = ChatManager(self)
+        self.chat_entry = DirectEntry(
+            text="",
+            scale=0.05,
+            pos=(-1.28, 0, -0.93),
+            frameColor=(0, 0, 0, 0.7),
+            text_fg=(1, 1, 1, 1),
+            initialText="",
+            numLines=1,
+            width=28,
+            focus=0,
+            command=self.submit_chat_message,
+            suppressKeys=False,
+        )
+        self.chat_entry.hide()
 
         self.show_scoreboard = False
+        self.scoreboard_text = OnscreenText(
+            text="",
+            pos=(1.25, 0.86),
+            fg=(1, 1, 1, 1),
+            align=TextNode.ARight,
+            scale=0.05,
+            mayChange=True,
+        )
+        self.scoreboard_text.hide()
 
-        # Initialize shader debug UI manager
-        self.shader_debug_ui = ShaderDebugUI(self)
+        self.hp_text = OnscreenText(
+            text="HP: 100/100",
+            pos=(-1.3, 0.82),
+            fg=(0.5, 1.0, 0.5, 1),
+            align=TextNode.ALeft,
+            scale=0.06,
+            mayChange=True,
+        )
+        self.hp_text.hide()
 
-        # Legacy references for compatibility
+        self.kd_text = OnscreenText(
+            text="K/D: 0/0",
+            pos=(-1.3, 0.74),
+            fg=(1, 1, 1, 1),
+            align=TextNode.ALeft,
+            scale=0.055,
+            mayChange=True,
+        )
+        self.kd_text.hide()
+
+        death_overlay_cm = CardMaker("death_overlay")
+        death_overlay_cm.setFrame(-1, 1, -1, 1)
+        self.death_overlay = self.render2d.attachNewNode(death_overlay_cm.generate())
+        self.death_overlay.setTransparency(TransparencyAttrib.MAlpha)
+        self.death_overlay.setColor(0.2, 0.0, 0.0, 0.45)
+        self.death_overlay.hide()
+
+        self.death_text = OnscreenText(
+            text="",
+            pos=(0, 0.12),
+            fg=(1.0, 0.9, 0.9, 1.0),
+            align=TextNode.ACenter,
+            scale=0.09,
+            mayChange=True,
+        )
+        self.death_text.hide()
+
+        hurt_flash_cm = CardMaker("hurt_flash")
+        hurt_flash_cm.setFrame(-1, 1, -1, 1)
+        self.hurt_flash = self.render2d.attachNewNode(hurt_flash_cm.generate())
+        self.hurt_flash.setTransparency(TransparencyAttrib.MAlpha)
+        self.hurt_flash.setColor(0.85, 0.05, 0.05, 0.0)
+        self.hurt_flash.hide()
+
         self.is_shader_debug_open = False
         self.imgui_backend = None
         self.using_imgui_shader_debug = False
@@ -557,37 +571,40 @@ class Game(ShowBase):
         self.shader_ui_search = ""
         self.shader_ui_preset_name = self.shader_system.current_preset_name
         self.shader_ui_selected_preset = self.shader_system.current_preset_name
-        self.shader_ui_config = {}
-
+        self.shader_ui_config = {
+            "width_ratio": 0.46,
+            "height_ratio": 0.52,
+            "min_width": 420.0,
+            "min_height": 280.0,
+            "max_width": 700.0,
+            "max_height": 520.0,
+            "margin_x": 24.0,
+            "margin_y": 56.0,
+            "alpha": 0.94,
+            "font_scale": 0.82,
+            "lock_window_size": False,
+            "show_style_editor": False,
+            "show_imgui_demo": False,
+        }
+        
         properties = WindowProperties()
         properties.setTitle("Aim Trainer")
         properties.setCursorHidden(True)
         properties.setMouseMode(WindowProperties.M_relative)
         self.win.requestProperties(properties)
 
-        if not self.shader_debug_ui.initialize_imgui():
-            self.shader_debug_ui.create_directgui_panel()
-
-        # Sync legacy references
-        self.is_shader_debug_open = self.shader_debug_ui.is_open
-        self.imgui_backend = self.shader_debug_ui.imgui_backend
-        self.using_imgui_shader_debug = self.shader_debug_ui.using_imgui
-        self.shader_debug_panel = self.shader_debug_ui.debug_panel
-        self.shader_ui_config = self.shader_debug_ui.ui_config
+        if not self.initialize_shader_debug_imgui():
+            self.create_shader_debug_ui()
         
         self.camLens.setFov(self.settings['fov'])
-
-        # Initialize movement manager
-        self.movement_manager = MovementManager(self)
-
-        # Legacy references for compatibility
-        self.move_speed = self.movement_manager.move_speed
-        self.sprint_speed = self.movement_manager.sprint_speed
-        self.jump_power = self.movement_manager.jump_power
-        self.gravity = self.movement_manager.gravity
-        self.vertical_velocity = self.movement_manager.vertical_velocity
-        self.horizontal_velocity = self.movement_manager.horizontal_velocity
-        self.is_jumping = self.movement_manager.is_jumping
+        
+        self.move_speed = 10.0
+        self.sprint_speed = 15.0
+        self.jump_power = 15.0
+        self.gravity = -50.0
+        self.vertical_velocity = 0.0
+        self.horizontal_velocity = Vec3(0, 0, 0)
+        self.is_jumping = False
         self.ground_height = 0
         self.is_sprinting = False
         self.jump_speed_boost = 1.0
@@ -595,43 +612,112 @@ class Game(ShowBase):
         self.prev_camera_heading = 0
         self.prev_camera_pitch = 0
         self.camera_rotation_speed = 0
-
-        self.can_shoot = True
+        
+        self.jump_combo_time = 1.0
+        self.jump_combo_multiplier = 1.0
+        self.max_combo_multiplier = 5.0
+        self.combo_stages = [
+            {'jumps': 1, 'multiplier': 1.0},
+            {'jumps': 2, 'multiplier': 1.4},
+            {'jumps': 3, 'multiplier': 1.8},
+            {'jumps': 4, 'multiplier': 2.2},
+            {'jumps': 5, 'multiplier': 2.6},
+            {'jumps': 6, 'multiplier': 3.0},
+            {'jumps': 7, 'multiplier': 3.2}
+        ]
+        self.current_combo_jumps = 0
+        self.last_jump_time = 0
         self.combo_task = None
-
-        # Initialize weapon manager
-        self.weapon_manager_new = WeaponManagerNew(self)
-
-        # Legacy references for compatibility
-        self.current_weapon = self.weapon_manager_new.current_weapon
-        self.weapons = self.weapon_manager_new.weapons
-        self.shoot_cooldown = self.weapon_manager_new.shoot_cooldown
-        self.recoil_time = self.weapon_manager_new.recoil_time
-        self.is_shooting = self.weapon_manager_new.is_shooting
-        self.shoot_state_frames = self.weapon_manager_new.shoot_state_frames
-        self.shoot_time = self.weapon_manager_new.shoot_time
-        self.original_weapon_pos = self.weapon_manager_new.original_weapon_pos
-        self.original_weapon_hpr = self.weapon_manager_new.original_weapon_hpr
-        self.recoil_pitch = self.weapon_manager_new.recoil_pitch
-        self.recoil_yaw = self.weapon_manager_new.recoil_yaw
-        self.max_recoil_pitch = self.weapon_manager_new.max_recoil_pitch
-        self.max_recoil_yaw = self.weapon_manager_new.max_recoil_yaw
-        self.recoil_recovery_speed = self.weapon_manager_new.recoil_recovery_speed
-        self.recoil_recovery_delay = self.weapon_manager_new.recoil_recovery_delay
-        self.last_shot_time = self.weapon_manager_new.last_shot_time
-        self.current_spread = self.weapon_manager_new.current_spread
-        self.is_aiming = self.weapon_manager_new.is_aiming
-        self.aim_transition = self.weapon_manager_new.aim_transition
-        self.ads_sensitivity_multiplier = self.weapon_manager_new.ads_sensitivity_multiplier
-        self.weapon = None
-        self.weapon_models = {}
-        self.weapon_model = None
-        self.weapon_animation = None
-        self.is_drawing_weapon = False
-        self.default_weapon_pos = {}
-        self.ads_weapon_pos = {}
-        self.ads_fov = {}
-
+        
+        self.can_shoot = True
+        self.current_weapon = "rifle"
+        
+        self.weapons = {
+            "pistol": {
+                "cooldown": 0.2,
+                "damage": 25,
+                "recoil": {
+                    "pitch": (0.5, 1.0),
+                    "yaw": (0.3, 0.3)
+                },
+                "spread": {
+                    "base": 0.02,
+                    "max": 0.15,
+                    "moving_mult": 1.5,
+                    "jumping_mult": 2.0,
+                    "recovery_time": 0.1
+                },
+                "sound": "sounds/pistol_shot.wav"
+            },
+            "rifle": {
+                "cooldown": 0.1,
+                "damage": 20,
+                "recoil": {
+                    "pitch": (0.3, 0.6),
+                    "yaw": (-0.2, 0.2)
+                },
+                "spread": {
+                    "base": 0.015,
+                    "max": 0.12,
+                    "moving_mult": 1.8,
+                    "jumping_mult": 2.5,
+                    "recovery_time": 0.08
+                },
+                "sound": "sounds/rifle_shot.wav"
+            },
+            "sniper": {
+                "cooldown": 1.0,
+                "damage": 100,
+                "recoil": {
+                    "pitch": (2.0, 3.0),
+                    "yaw": (-0.1, 0.1)
+                },
+                "spread": {
+                    "base": 0.001,
+                    "max": 0.05,
+                    "moving_mult": 5.0,
+                    "jumping_mult": 10.0,
+                    "recovery_time": 0.5
+                },
+                "sound": "sounds/sniper_shot.wav"
+            },
+            "dual_revolvers": {
+                "cooldown": 0.1,
+                "damage": 20,
+                "recoil": {
+                    "pitch": (0.3, 0.6),
+                    "yaw": (-0.2, 0.2)
+                },
+                "spread": {
+                    "base": 0.015,
+                    "max": 0.12,
+                    "moving_mult": 1.8,
+                    "jumping_mult": 2.5,
+                    "recovery_time": 0.08
+                },
+                "sound": "sounds/revik.wav"
+            }
+        }
+        
+        self.shoot_cooldown = self.weapons[self.current_weapon]["cooldown"]
+        self.recoil_time = 0.05
+        self.is_shooting = False
+        self.shoot_state_frames = 0
+        self.shoot_time = 0
+        self.original_weapon_pos = None
+        self.original_weapon_hpr = None
+        
+        # Параметры отдачи
+        self.recoil_pitch = 0
+        self.recoil_yaw = 0
+        self.max_recoil_pitch = 2.0
+        self.max_recoil_yaw = 1.0
+        self.recoil_recovery_speed = 5.0
+        self.recoil_recovery_delay = 0.1
+        self.last_shot_time = 0
+        
+        self.current_spread = 0.0
+        
         self.camera_height = 1.8
         self.camera.setPos(0, 0, self.camera_height)
         self.camera_pitch = 0
@@ -664,25 +750,17 @@ class Game(ShowBase):
         self.damage_texts = []
         
         self.hit_markers = []
-
-        # Initialize killfeed manager
-        self.killfeed_manager = KillfeedManager(self)
-
-        # Legacy references for compatibility
-        self.killfeed_messages = self.killfeed_manager.messages
-        self.killfeed_fade_time = self.killfeed_manager.fade_time
-        self.killfeed_slide_distance = self.killfeed_manager.slide_distance
-        self.killfeed_duration = self.killfeed_manager.display_duration
         
-        # Initialize shell manager
-        self.shell_manager = ShellManager(self)
+        self.killfeed_messages = []
+        self.killfeed_fade_time = 0.3
+        self.killfeed_slide_distance = 0.2
+        self.killfeed_duration = 5
+        
+        self.active_shells = []
+        
         self.shell_model = self.safe_load_model("models/box")
         self.shell_model.setScale(0.02, 0.05, 0.02)
         self.shell_model.setColor(0.8, 0.6, 0.2)
-        self.shell_manager.initialize(self.shell_model)
-
-        # Legacy reference for compatibility
-        self.active_shells = self.shell_manager.active_shells
         
         self.accept("escape", self.toggle_pause)
         self.accept("p", self.toggle_pause)
@@ -695,7 +773,7 @@ class Game(ShowBase):
         self.accept("wheel_down", self.cycle_weapon, [-1])
         self.accept("f7", self.toggle_shader_debug_panel)
         self.accept("f8", self.toggle_hitbox_debug)
-        self.accept("enter", self.chat_manager.toggle_chat_input)
+        self.accept("enter", self.toggle_chat_input)
         self.accept("tab", self.on_tab_down)
         self.accept("tab-up", self.on_tab_up)
         
@@ -723,8 +801,8 @@ class Game(ShowBase):
         self.fps_update_time = 0
         
         self.taskMgr.add(self.update_damage_texts, "update_damage_texts")
-
-        self.taskMgr.add(self.shell_manager.update_shells, "update_shells")
+        
+        self.taskMgr.add(self.update_shells, "update_shells")
         
         self.ray = CollisionRay()
         rayNode = CollisionNode('mouseRay')
@@ -751,8 +829,8 @@ class Game(ShowBase):
         
         self.accept('update_weapon_position', self.update_weapon_position)
 
-        # Initialize audio manager
-        self.audio_manager = AudioManager(self)
+        self.music = None
+        self.current_music_path = None
 
         self.mouse_pressed = False
         
@@ -845,62 +923,546 @@ class Game(ShowBase):
                 pass
 
     def initialize_shader_debug_imgui(self):
-        return self.shader_debug_ui.initialize_imgui()
+        if not HAS_P3D_IMGUI:
+            return False
+        try:
+            self.imgui_backend = p3dimgui.ImGuiBackend(style="dark")
+            self.imgui_backend.io.mouse_draw_cursor = True
+            self.imgui_backend.hide()
+            self.accept("imgui-new-frame", self.render_shader_debug_imgui)
+            self.using_imgui_shader_debug = True
+            print("[ShaderDebug] Using in-game Dear ImGui backend")
+            return True
+        except Exception as exc:
+            self.imgui_backend = None
+            self.using_imgui_shader_debug = False
+            print(f"[ShaderDebug] ImGui backend unavailable, falling back to DirectGUI: {exc}")
+            return False
 
     def render_shader_debug_imgui(self):
-        self.shader_debug_ui.render_imgui()
+        if not self.is_shader_debug_open or not self.using_imgui_shader_debug or not self.imgui_backend:
+            return
+
+        snapshot = self.shader_system.get_ui_snapshot()
+        preset_names = snapshot["preset_names"]
+        if self.shader_ui_selected_preset not in preset_names and preset_names:
+            self.shader_ui_selected_preset = preset_names[0]
+        if not self.shader_ui_preset_name:
+            self.shader_ui_preset_name = snapshot["current_preset"]
+
+        io = imgui.get_io()
+        style = imgui.get_style()
+        style.alpha = float(self.shader_ui_config.get("alpha", 1.0))
+        shell_scale = self.get_imgui_shell_scale()
+        display_width = float(io.display_size.x or 1024.0)
+        display_height = float(io.display_size.y or 768.0)
+        margin_x = float(self.shader_ui_config.get("margin_x", 24.0))
+        margin_y = float(self.shader_ui_config.get("margin_y", 56.0))
+        min_width = float(self.shader_ui_config.get("min_width", 480.0)) * shell_scale
+        min_height = float(self.shader_ui_config.get("min_height", 320.0)) * shell_scale
+        max_width = min(
+            float(self.shader_ui_config.get("max_width", 860.0)) * shell_scale,
+            max(min_width, display_width - (margin_x * 2.0)),
+        )
+        max_height = min(
+            float(self.shader_ui_config.get("max_height", 620.0)) * shell_scale,
+            max(min_height, display_height - (margin_y + 24.0)),
+        )
+        default_width = min(max_width, max(min_width, display_width * float(self.shader_ui_config.get("width_ratio", 0.58)) * shell_scale))
+        default_height = min(max_height, max(min_height, display_height * float(self.shader_ui_config.get("height_ratio", 0.62)) * shell_scale))
+
+        imgui.set_next_window_pos(ImVec2(margin_x, margin_y), imgui.Cond_.always)
+        imgui.set_next_window_size_constraints(
+            ImVec2(min_width, min_height),
+            ImVec2(max_width, max_height),
+        )
+        imgui.set_next_window_size(ImVec2(default_width, default_height), imgui.Cond_.always)
+        window_flags = (
+            imgui.WindowFlags_.no_saved_settings.value
+            | imgui.WindowFlags_.no_collapse.value
+        )
+        if self.shader_ui_config.get("lock_window_size", False):
+            window_flags |= imgui.WindowFlags_.no_resize.value
+
+        imgui.begin("Shader Shell", flags=window_flags)
+        if hasattr(imgui, "set_window_font_scale"):
+            imgui.set_window_font_scale(max(0.55, float(self.shader_ui_config.get("font_scale", 1.0)) * shell_scale))
+        imgui.text("F7 / Esc close")
+        imgui.same_line()
+        self._render_shader_status_badge(snapshot["compile_status"], "experimental")
+        imgui.same_line()
+        dirty_text = "Dirty" if snapshot["preset_dirty"] else "Saved"
+        self._render_shader_status_badge(dirty_text, "active" if not snapshot["preset_dirty"] else "experimental")
+        imgui.separator()
+
+        if imgui.begin_tab_bar("shader-shell-tabs"):
+            for tab in snapshot["tabs"]:
+                opened, _ = imgui.begin_tab_item(tab["label"])
+                if opened:
+                    imgui.begin_child(f"shader-shell-body::{tab['id']}", ImVec2(0, 0))
+                    if tab["id"] == "home":
+                        self._render_shader_home_tab(snapshot)
+                    elif tab["id"] == "techniques":
+                        self._render_shader_techniques_tab(snapshot)
+                    elif tab["id"] == "targets":
+                        self._render_shader_panel_tab("targets", snapshot)
+                    elif tab["id"] == "weapon":
+                        self._render_shader_panel_tab("weapon", snapshot)
+                    elif tab["id"] == "post":
+                        self._render_shader_panel_tab("post", snapshot)
+                    elif tab["id"] == "volumes":
+                        self._render_shader_panel_tab("volumes", snapshot)
+                    elif tab["id"] == "stats":
+                        self._render_shader_stats_tab(snapshot)
+                    imgui.end_child()
+                    imgui.end_tab_item()
+            opened, _ = imgui.begin_tab_item("ImGui")
+            if opened:
+                imgui.begin_child("shader-shell-body::imgui", ImVec2(0, 0))
+                self._render_imgui_settings_tab(display_width, display_height)
+                imgui.end_child()
+                imgui.end_tab_item()
+            imgui.end_tab_bar()
+
+        if self.shader_ui_config.get("show_imgui_demo", False) and hasattr(imgui, "show_demo_window"):
+            visible = True
+            imgui.show_demo_window(visible)
+
+        imgui.end()
 
     def _shader_status_color(self, status: str):
-        return self.shader_debug_ui._status_color(status)
+        palette = {
+            "active": imgui.ImVec4(0.33, 0.82, 0.48, 1.0),
+            "planned": imgui.ImVec4(0.45, 0.67, 0.95, 1.0),
+            "experimental": imgui.ImVec4(0.97, 0.72, 0.25, 1.0),
+            "broken": imgui.ImVec4(0.93, 0.33, 0.33, 1.0),
+        }
+        return palette.get(status, imgui.ImVec4(0.8, 0.8, 0.8, 1.0))
 
     def _render_shader_status_badge(self, text: str, status: str):
-        self.shader_debug_ui._render_status_badge(text, status)
+        imgui.text_colored(self._shader_status_color(status), text)
 
     def _render_shader_global_toggles(self):
-        self.shader_debug_ui._render_global_toggles()
+        for label, key in [
+            ("Master", "master_enabled"),
+            ("Targets", "target_enabled"),
+            ("Weapon", "weapon_enabled"),
+            ("Post", "post_enabled"),
+            ("Volumes", "volumes_enabled"),
+            ("Debug Views", "debug_views_enabled"),
+        ]:
+            changed, value = imgui.checkbox(label, bool(self.shader_system.state.get(key, False)))
+            if changed:
+                self.update_shader_debug_bool(key, value)
+            imgui.same_line()
+        imgui.new_line()
 
     def _render_shader_home_tab(self, snapshot: dict):
-        self.shader_debug_ui._render_home_tab(snapshot)
+        self._render_shader_global_toggles()
+        imgui.separator_text("Presets")
+
+        changed, self.shader_ui_preset_name = imgui.input_text("Preset Name", self.shader_ui_preset_name)
+        if changed:
+            self.shader_ui_preset_name = self.shader_ui_preset_name.strip()
+
+        if imgui.button("Save"):
+            if self.shader_system.save_preset(self.shader_ui_preset_name or "default"):
+                self.shader_ui_selected_preset = self.shader_system.current_preset_name
+                self.shader_ui_preset_name = self.shader_system.current_preset_name
+        imgui.same_line()
+        if imgui.button("Load"):
+            if self.shader_system.load_preset(self.shader_ui_selected_preset):
+                self.shader_ui_preset_name = self.shader_system.current_preset_name
+        imgui.same_line()
+        if imgui.button("Delete"):
+            if self.shader_system.delete_preset(self.shader_ui_selected_preset):
+                self.shader_ui_selected_preset = self.shader_system.current_preset_name
+                self.shader_ui_preset_name = self.shader_system.current_preset_name
+        imgui.same_line()
+        if imgui.button("Reload Shaders"):
+            self.shader_system.reload_shaders()
+        imgui.same_line()
+        if imgui.button("Reset All"):
+            self.reset_shader_debug_values()
+            self.shader_ui_preset_name = self.shader_system.current_preset_name
+
+        if imgui.begin_list_box("Available Presets", ImVec2(-1, 72)):
+            for preset_name in snapshot["preset_names"]:
+                selected = preset_name == self.shader_ui_selected_preset
+                clicked, selected = imgui.selectable(preset_name, selected)
+                if clicked:
+                    self.shader_ui_selected_preset = preset_name
+            imgui.end_list_box()
+
+        imgui.separator_text("Overview")
+        imgui.bullet_text(f"Preset: {snapshot['current_preset']}")
+        imgui.bullet_text(f"Enabled techniques: {snapshot['active_count']} / {snapshot['technique_count']}")
+        imgui.bullet_text(f"Render: {snapshot['render_size'][0]} x {snapshot['render_size'][1]}")
+        imgui.bullet_text(f"Framebuffer: {snapshot['framebuffer_size'][0]} x {snapshot['framebuffer_size'][1]}")
+        if snapshot["buffer_size"]:
+            imgui.bullet_text(f"Scene Buffer: {snapshot['buffer_size'][0]} x {snapshot['buffer_size'][1]}")
+        imgui.bullet_text(f"Post Stage Applied: {snapshot['post_stage_applied']}")
+
+        imgui.separator_text("Pipeline Order")
+        for idx, stage_name in enumerate(snapshot["pipeline_order"], 1):
+            imgui.bullet_text(f"{idx}. {stage_name}")
+
+        imgui.separator_text("Roadmap")
+        for roadmap_item in [
+            "Color grading / tonemap / LUT pack",
+            "Bloom / lens dirt / glare shell",
+            "Reactive overlays for damage, kill and ADS states",
+            "Target outline / respawn materialize pack",
+            "Local fog, heat haze and impact dust placeholders",
+        ]:
+            imgui.bullet_text(roadmap_item)
 
     def _render_shader_techniques_tab(self, snapshot: dict):
-        self.shader_debug_ui._render_techniques_tab(snapshot)
+        changed, self.shader_ui_search = imgui.input_text("Search", self.shader_ui_search)
+        if changed:
+            self.shader_ui_search = self.shader_ui_search.strip()
+        imgui.separator()
+        self._render_shader_grouped_cards(snapshot["registry"], self.shader_ui_search)
 
     def _render_shader_panel_tab(self, panel_id: str, snapshot: dict):
-        self.shader_debug_ui._render_panel_tab(panel_id, snapshot)
+        panel_registry = snapshot["panels"].get(panel_id, [])
+        self._render_shader_grouped_cards(panel_registry, "")
 
     def _render_shader_grouped_cards(self, techniques: list, search_query: str):
-        self.shader_debug_ui._render_grouped_cards(techniques, search_query)
+        grouped = {}
+        lowered_search = search_query.lower().strip()
+        for technique in techniques:
+            haystack = " ".join(
+                [
+                    technique.get("display_name", ""),
+                    technique.get("description", ""),
+                    technique.get("group", ""),
+                    technique.get("status", ""),
+                ]
+            ).lower()
+            if lowered_search and lowered_search not in haystack:
+                continue
+            grouped.setdefault(technique.get("group", "Misc"), []).append(technique)
+
+        if not grouped:
+            imgui.text_colored(self._shader_status_color("planned"), "No techniques match the current filter.")
+            return
+
+        for group_name, items in grouped.items():
+            imgui.separator_text(group_name)
+            for technique in sorted(items, key=lambda item: item.get("order", 0)):
+                self._render_shader_technique_card(technique)
 
     def _render_shader_technique_card(self, technique: dict):
-        self.shader_debug_ui._render_technique_card(technique)
+        status = technique.get("status", "planned")
+        header_open = imgui.collapsing_header(
+            f"{technique['display_name']}##{technique['technique_id']}",
+            imgui.TreeNodeFlags_.default_open.value if status in ("active", "experimental") else 0,
+        )
+        if not header_open:
+            return
+
+        self._render_shader_status_badge(status.upper(), status)
+        imgui.same_line()
+        imgui.text(f"Stage: {technique.get('stage', 'n/a')} | Cost: {technique.get('cost', 'n/a')}")
+        imgui.text_wrapped(technique.get("description", ""))
+        if technique.get("debug_notes"):
+            imgui.text_colored(imgui.ImVec4(0.62, 0.70, 0.82, 1.0), technique["debug_notes"])
+
+        enabled_key = technique.get("enabled_key")
+        if enabled_key:
+            changed, enabled = imgui.checkbox(
+                f"Enabled##{technique['technique_id']}",
+                bool(self.shader_system.state.get(enabled_key, False)),
+            )
+            if changed:
+                self.update_shader_debug_bool(enabled_key, enabled)
+        else:
+            imgui.begin_disabled()
+            imgui.checkbox(f"Enabled##{technique['technique_id']}", False)
+            imgui.end_disabled()
+
+        if technique["params"]:
+            for param in technique["params"]:
+                slider_width = max(240.0, imgui.get_content_region_avail().x - 8.0)
+                imgui.set_next_item_width(slider_width)
+                changed, value = imgui.slider_float(
+                    f"{param['label']}##{technique['technique_id']}::{param['key']}",
+                    float(param["value"]),
+                    param["min"],
+                    param["max"],
+                    param.get("format", "%.2f"),
+                )
+                if changed:
+                    self.update_shader_debug_value(param["key"], value)
+        else:
+            message = "Runtime-integrated effect. No direct per-technique controls yet."
+            message_status = status if status in ("active", "experimental", "broken") else "planned"
+            if message_status == "planned":
+                message = "Planned placeholder. GLSL implementation will be attached later."
+            imgui.text_colored(self._shader_status_color(message_status), message)
+        imgui.spacing()
 
     def _render_shader_stats_tab(self, snapshot: dict):
-        self.shader_debug_ui._render_stats_tab(snapshot)
+        imgui.separator_text("Runtime")
+        imgui.bullet_text(f"Compile Status: {snapshot['compile_status']}")
+        imgui.bullet_text(f"Current Preset: {snapshot['current_preset']}")
+        imgui.bullet_text(f"Preset Dirty: {'Yes' if snapshot['preset_dirty'] else 'No'}")
+        imgui.bullet_text(f"Active Techniques: {snapshot['active_count']}")
+        imgui.bullet_text(f"Fullscreen Stage Applied: {snapshot['post_stage_applied']}")
+        imgui.bullet_text(f"Post Supported: {'Yes' if snapshot['post_supported'] else 'No'}")
+        imgui.separator_text("Buffers")
+        imgui.bullet_text(f"Render Size: {snapshot['render_size'][0]} x {snapshot['render_size'][1]}")
+        imgui.bullet_text(f"Framebuffer Size: {snapshot['framebuffer_size'][0]} x {snapshot['framebuffer_size'][1]}")
+        if snapshot["buffer_size"]:
+            imgui.bullet_text(f"Scene Buffer Size: {snapshot['buffer_size'][0]} x {snapshot['buffer_size'][1]}")
+        else:
+            imgui.bullet_text("Scene Buffer Size: inactive")
+        imgui.separator_text("Debug")
+        imgui.text_wrapped(
+            "This shell is the future ReShade-Lite host for custom GLSL passes, object shaders and local volumetric placeholders."
+        )
 
     def _render_imgui_settings_tab(self, display_width: float, display_height: float):
-        self.shader_debug_ui._render_imgui_settings_tab(display_width, display_height)
+        cfg = self.shader_ui_config
+
+        imgui.separator_text("Shell Window")
+        changed, value = imgui.slider_float("Width Ratio", float(cfg["width_ratio"]), 0.35, 0.90, "%.2f")
+        if changed:
+            cfg["width_ratio"] = value
+        changed, value = imgui.slider_float("Height Ratio", float(cfg["height_ratio"]), 0.35, 0.90, "%.2f")
+        if changed:
+            cfg["height_ratio"] = value
+        changed, value = imgui.slider_float("Margin X", float(cfg["margin_x"]), 8.0, 96.0, "%.0f")
+        if changed:
+            cfg["margin_x"] = value
+        changed, value = imgui.slider_float("Margin Y", float(cfg["margin_y"]), 8.0, 128.0, "%.0f")
+        if changed:
+            cfg["margin_y"] = value
+        changed, value = imgui.slider_float("Min Width", float(cfg["min_width"]), 360.0, 760.0, "%.0f")
+        if changed:
+            cfg["min_width"] = value
+        changed, value = imgui.slider_float("Min Height", float(cfg["min_height"]), 260.0, 640.0, "%.0f")
+        if changed:
+            cfg["min_height"] = value
+        changed, value = imgui.slider_float("Max Width", float(cfg["max_width"]), 520.0, min(display_width, 1400.0), "%.0f")
+        if changed:
+            cfg["max_width"] = value
+        changed, value = imgui.slider_float("Max Height", float(cfg["max_height"]), 360.0, min(display_height, 1200.0), "%.0f")
+        if changed:
+            cfg["max_height"] = value
+        changed, value = imgui.checkbox("Lock Window Resize", bool(cfg["lock_window_size"]))
+        if changed:
+            cfg["lock_window_size"] = value
+
+        imgui.separator_text("Visual")
+        changed, value = imgui.slider_float("Font Scale", float(cfg["font_scale"]), 0.70, 1.35, "%.2f")
+        if changed:
+            cfg["font_scale"] = value
+        changed, value = imgui.slider_float("Alpha", float(cfg["alpha"]), 0.65, 1.00, "%.2f")
+        if changed:
+            cfg["alpha"] = value
+
+        imgui.separator_text("Tools")
+        changed, value = imgui.checkbox("Show Style Editor", bool(cfg["show_style_editor"]))
+        if changed:
+            cfg["show_style_editor"] = value
+        changed, value = imgui.checkbox("Show ImGui Demo", bool(cfg["show_imgui_demo"]))
+        if changed:
+            cfg["show_imgui_demo"] = value
+        if imgui.button("Reset ImGui Shell"):
+            self.shader_ui_config.update(
+                {
+                    "width_ratio": 0.46,
+                    "height_ratio": 0.52,
+                    "min_width": 420.0,
+                    "min_height": 280.0,
+                    "max_width": 700.0,
+                    "max_height": 520.0,
+                    "margin_x": 24.0,
+                    "margin_y": 56.0,
+                    "alpha": 0.94,
+                    "font_scale": 0.82,
+                    "lock_window_size": False,
+                    "show_style_editor": False,
+                    "show_imgui_demo": False,
+                }
+            )
+
+        imgui.separator_text("Display")
+        imgui.bullet_text(f"Display Size: {int(display_width)} x {int(display_height)}")
+        imgui.bullet_text(f"Current Width Ratio: {cfg['width_ratio']:.2f}")
+        imgui.bullet_text(f"Current Height Ratio: {cfg['height_ratio']:.2f}")
+
+        if cfg.get("show_style_editor", False) and hasattr(imgui, "show_style_editor"):
+            imgui.separator_text("Style Editor")
+            imgui.show_style_editor()
 
     def create_shader_debug_ui(self):
-        self.shader_debug_ui.create_directgui_panel()
+        panel = DirectFrame(
+            frameColor=(0.06, 0.06, 0.08, 0.92),
+            frameSize=(-0.62, 0.62, -0.82, 0.82),
+            pos=(0.0, 0, 0.0),
+        )
+        panel.hide()
+        self.shader_debug_panel = panel
+
+        title = DirectLabel(
+            text="Shader Debug",
+            scale=0.07,
+            pos=(0, 0, 0.74),
+            text_fg=(1, 1, 1, 1),
+            frameColor=(0, 0, 0, 0),
+            parent=panel,
+        )
+        self.shader_debug_widgets.append(title)
+
+        subtitle = DirectLabel(
+            text="F7 close | post stages: 0 off, 1 filter, 2 glsl copy, 3 fx",
+            scale=0.04,
+            pos=(0, 0, 0.66),
+            text_fg=(0.75, 0.8, 0.9, 1),
+            frameColor=(0, 0, 0, 0),
+            parent=panel,
+        )
+        self.shader_debug_widgets.append(subtitle)
+
+        rows = [
+            ("Master", "master_enabled", "toggle"),
+            ("Target Shader", "target_enabled", "toggle"),
+            ("Weapon Shader", "weapon_enabled", "toggle"),
+            ("Post FX", "post_enabled", "toggle"),
+            ("Post Stage", "post_debug_stage", "slider", (0.0, 3.0)),
+            ("Target Hit Flash", "target_hit_flash", "slider", (0.0, 4.0)),
+            ("Target Emissive", "target_emissive", "slider", (0.0, 3.0)),
+            ("Target Pulse", "target_pulse_speed", "slider", (0.0, 8.0)),
+            ("Target Dissolve", "target_dissolve_test", "slider", (0.0, 1.0)),
+            ("Weapon Fresnel", "weapon_fresnel", "slider", (0.0, 4.0)),
+            ("Weapon Flash", "weapon_flash_strength", "slider", (0.0, 4.0)),
+            ("Post Vignette", "post_vignette", "slider", (0.0, 1.0)),
+            ("Post Contrast", "post_contrast", "slider", (0.5, 2.0)),
+            ("Post Saturation", "post_saturation", "slider", (0.0, 2.0)),
+            ("Post Sharpen", "post_sharpen", "slider", (0.0, 2.0)),
+            ("Post Hit Tint", "post_hit_tint", "slider", (0.0, 1.0)),
+            ("Post Speed FX", "post_speed_strength", "slider", (0.0, 1.0)),
+        ]
+
+        y = 0.54
+        for row in rows:
+            label_text, key, kind = row[:3]
+            label = DirectLabel(
+                text=label_text,
+                scale=0.045,
+                pos=(-0.42, 0, y),
+                text_align=TextNode.ALeft,
+                text_fg=(1, 1, 1, 1),
+                frameColor=(0, 0, 0, 0),
+                parent=panel,
+            )
+            self.shader_debug_widgets.append(label)
+
+            if kind == "toggle":
+                widget = DirectCheckButton(
+                    text="",
+                    scale=0.05,
+                    pos=(0.38, 0, y - 0.01),
+                    indicatorValue=1 if self.shader_system.state.get(key, False) else 0,
+                    frameColor=(0, 0, 0, 0),
+                    parent=panel,
+                )
+                widget["command"] = lambda shader_key=key, check_widget=widget: self.update_shader_debug_bool(
+                    shader_key,
+                    bool(check_widget["indicatorValue"]),
+                )
+            else:
+                low, high = row[3]
+                widget = DirectSlider(
+                    range=(low, high),
+                    value=float(self.shader_system.state.get(key, low)),
+                    pageSize=(high - low) / 100.0,
+                    scale=0.32,
+                    pos=(0.15, 0, y),
+                    parent=panel,
+                )
+                widget["command"] = lambda shader_key=key, slider_widget=widget: self.update_shader_debug_value(
+                    shader_key,
+                    float(slider_widget["value"]),
+                )
+            self.shader_debug_widgets.append(widget)
+            y -= 0.12
+
+        reset_btn = DirectButton(
+            text="Reset",
+            scale=0.055,
+            pos=(-0.18, 0, -0.68),
+            command=self.reset_shader_debug_values,
+            parent=panel,
+        )
+        close_btn = DirectButton(
+            text="Close",
+            scale=0.055,
+            pos=(0.18, 0, -0.68),
+            command=self.toggle_shader_debug_panel,
+            parent=panel,
+        )
+        self.shader_debug_widgets.extend([reset_btn, close_btn])
 
     def _set_overlay_mouse_mode(self, enabled: bool):
-        self.shader_debug_ui._set_overlay_mouse_mode(enabled)
+        props = WindowProperties()
+        props.setCursorHidden(not enabled)
+        props.setMouseMode(WindowProperties.M_absolute if enabled else WindowProperties.M_relative)
+        self.win.requestProperties(props)
 
     def toggle_shader_debug_panel(self):
-        self.shader_debug_ui.toggle()
-        # Sync legacy references
-        self.is_shader_debug_open = self.shader_debug_ui.is_open
-        self.imgui_backend = self.shader_debug_ui.imgui_backend
-        self.shader_debug_panel = self.shader_debug_ui.debug_panel
+        if self.is_splash_screen_active:
+            return
+        if self.is_shader_debug_open:
+            self.is_shader_debug_open = False
+            if self.using_imgui_shader_debug and self.imgui_backend:
+                self.imgui_backend.hide()
+            if self.shader_debug_panel:
+                self.shader_debug_panel.hide()
+            self._set_overlay_mouse_mode(False)
+            return
+
+        if self.is_chat_active:
+            self.close_chat_input()
+        if self.is_shader_debug_open:
+            self.toggle_shader_debug_panel()
+
+        self.is_shader_debug_open = True
+        if self.using_imgui_shader_debug and self.imgui_backend:
+            self.imgui_backend.show()
+            props = WindowProperties()
+            props.setCursorHidden(True)
+            props.setMouseMode(WindowProperties.M_absolute)
+            self.win.requestProperties(props)
+        elif self.shader_debug_panel:
+            self.shader_debug_panel.show()
+            self._set_overlay_mouse_mode(True)
+        self.mouse_pressed = False
+        for key in self.keyMap:
+            self.keyMap[key] = False
 
     def update_shader_debug_bool(self, key: str, value):
-        self.shader_debug_ui.update_bool(key, value)
+        self.shader_system.set_state_bool(key, value)
 
     def update_shader_debug_value(self, key: str, value):
-        self.shader_debug_ui.update_value(key, value)
+        self.shader_system.set_state_value(key, value)
 
     def reset_shader_debug_values(self):
-        self.shader_debug_ui.reset_values()
+        self.shader_system.reset_state()
+        if self.using_imgui_shader_debug:
+            return
+        if not self.shader_debug_panel:
+            return
+        # Rebuild panel to keep slider values in sync.
+        self.shader_debug_panel.destroy()
+        self.shader_debug_widgets = []
+        self.create_shader_debug_ui()
+        if self.is_shader_debug_open and self.shader_debug_panel:
+            self.shader_debug_panel.show()
+
     def create_cross_marker(self, position):
         marker_node = NodePath("hit_marker")
         marker_node.reparentTo(self.render)
@@ -971,36 +1533,272 @@ class Game(ShowBase):
             target = self.target_pool.acquire()
             self.targets.append(target)
 
+    def setup_weapon(self):
+        self.weapon = NodePath("weapon")
+        self.weapon.reparentTo(self.camera)
+        
+        self.weapon_models = {}
+        
+        pistol = NodePath("pistol")
+        pistol.reparentTo(self.weapon)
+        
+        barrel = self.safe_load_model("models/box")
+        barrel.setScale(0.08, 0.4, 0.08)
+        barrel.setPos(0, 1.0, -0.1)
+        barrel.setColor(0.2, 0.2, 0.2)
+        barrel.reparentTo(pistol)
+        
+        grip = self.safe_load_model("models/box")
+        grip.setScale(0.1, 0.1, 0.25)
+        grip.setPos(0, 0.8, -0.3)
+        grip.setColor(0.3, 0.3, 0.3)
+        grip.reparentTo(pistol)
+        
+        self.weapon_models["pistol"] = pistol
+        
+        rifle = NodePath("rifle")
+        rifle.reparentTo(self.weapon)
+        
+        barrel = self.safe_load_model("models/box")
+        barrel.setScale(0.06, 0.8, 0.06)
+        barrel.setPos(0, 1.2, -0.1)
+        barrel.setColor(0.2, 0.2, 0.2)
+        barrel.reparentTo(rifle)
+        
+        body = self.safe_load_model("models/box")
+        body.setScale(0.1, 0.4, 0.12)
+        body.setPos(0, 0.8, -0.1)
+        body.setColor(0.25, 0.25, 0.25)
+        body.reparentTo(rifle)
+        
+        stock = self.safe_load_model("models/box")
+        stock.setScale(0.08, 0.3, 0.15)
+        stock.setPos(0, 0.4, -0.15)
+        stock.setColor(0.3, 0.3, 0.3)
+        stock.reparentTo(rifle)
+        
+        grip = self.safe_load_model("models/box")
+        grip.setScale(0.08, 0.1, 0.2)
+        grip.setPos(0, 0.7, -0.3)
+        grip.setColor(0.3, 0.3, 0.3)
+        grip.reparentTo(rifle)
+        
+        self.weapon_models["rifle"] = rifle
+        
+        sniper = NodePath("sniper")
+        sniper.reparentTo(self.weapon)
+        
+        barrel = self.safe_load_model("models/box")
+        barrel.setScale(0.05, 1.0, 0.05)
+        barrel.setPos(0, 1.5, -0.1)
+        barrel.setColor(0.2, 0.2, 0.2)
+        barrel.reparentTo(sniper)
+        
+        body = self.safe_load_model("models/box")
+        body.setScale(0.1, 0.5, 0.15)
+        body.setPos(0, 1.0, -0.1)
+        body.setColor(0.25, 0.25, 0.25)
+        body.reparentTo(sniper)
+        
+        stock = self.safe_load_model("models/box")
+        stock.setScale(0.08, 0.4, 0.15)
+        stock.setPos(0, 0.6, -0.15)
+        stock.setColor(0.3, 0.3, 0.3)
+        stock.reparentTo(sniper)
+        
+        grip = self.safe_load_model("models/box")
+        grip.setScale(0.08, 0.1, 0.2)
+        grip.setPos(0, 0.9, -0.3)
+        grip.setColor(0.3, 0.3, 0.3)
+        grip.reparentTo(sniper)
+        
+        self.weapon_models["sniper"] = sniper
+        
+        dual_revolvers = NodePath("dual_revolvers")
+        dual_revolvers.reparentTo(self.weapon)
+        
+        left_revolver = NodePath("left_revolver")
+        left_revolver.reparentTo(dual_revolvers)
+        left_revolver.setPos(-2.0, 0.6, -0.2)
+        
+        right_revolver = NodePath("right_revolver")
+        right_revolver.reparentTo(dual_revolvers)
+        right_revolver.setPos(0.4, 0.6, -0.2)
+        
+        for revolver in [left_revolver, right_revolver]:
+            barrel = self.safe_load_model("models/box")
+            barrel.setScale(0.06, 0.3, 0.06)
+            barrel.setPos(0, 0.8, 0)
+            barrel.setColor(0.2, 0.2, 0.2)
+            barrel.reparentTo(revolver)
+            
+            cylinder = self.safe_load_model("models/box")
+            cylinder.setScale(0.1, 0.15, 0.1)
+            cylinder.setPos(0, 0.6, 0)
+            cylinder.setColor(0.3, 0.3, 0.3)
+            cylinder.reparentTo(revolver)
+            
+            grip = self.safe_load_model("models/box")
+            grip.setScale(0.08, 0.1, 0.2)
+            grip.setPos(0, 0.5, -0.15)
+            grip.setColor(0.4, 0.2, 0.1)
+            grip.reparentTo(revolver)
+        
+        self.weapon_models["dual_revolvers"] = dual_revolvers
+        
+        for weapon_name, model in self.weapon_models.items():
+            if weapon_name == self.current_weapon:
+                model.show()
+            else:
+                model.hide()
+        
+        self.update_weapon_position()
+        
+        self.original_weapon_pos = self.weapon.getPos()
+        self.original_weapon_hpr = self.weapon.getHpr()
+
+    def setup_weapon_render_layer(self):
+        return
+
+    def cleanup_weapon_render_layer(self):
+        return
+
     def sync_weapon_camera(self):
         return
 
     def update_weapon_position(self):
         """Обновляет позицию оружия на основе настроек"""
-        self.weapon_manager_new.update_weapon_position()
-        # Sync legacy references
-        self.weapon = self.weapon_manager_new.weapon
-        self.original_weapon_pos = self.weapon_manager_new.original_weapon_pos
-        self.original_weapon_hpr = self.weapon_manager_new.original_weapon_hpr
+        if not hasattr(self, 'weapon') or self.weapon.isEmpty():
+            return
+            
+        if 'weapon_position' not in self.settings:
+            self.settings['weapon_position'] = self.DEFAULT_SETTINGS['weapon_position'].copy()
+            
+        x = self.settings['weapon_position'].get('x', self.DEFAULT_SETTINGS['weapon_position']['x'])
+        y = self.settings['weapon_position'].get('y', self.DEFAULT_SETTINGS['weapon_position']['y'])
+        z = self.settings['weapon_position'].get('z', self.DEFAULT_SETTINGS['weapon_position']['z'])
+        
+        self.weapon.setPos(x, y, z)
+        self.original_weapon_pos = self.weapon.getPos()
+        self.original_weapon_hpr = self.weapon.getHpr()
+        
+        self.save_settings()
         
     def animate_weapon_recoil(self):
-        """Анимирует отдачу оружия"""
-        self.weapon_manager_new.animate_weapon_recoil()
+        if self.current_weapon == "dual_revolvers":
+            return
+            
+        if not self.original_weapon_pos:
+            self.original_weapon_pos = self.weapon.getPos()
+            self.original_weapon_hpr = self.weapon.getHpr()
+        
+        start_pos = self.weapon.getPos()
+        start_hpr = self.weapon.getHpr()
+        
+        recoil_pos = Point3(
+            start_pos.getX(),
+            start_pos.getY() - 0.08,
+            start_pos.getZ() + 0.03
+        )
+        
+        recoil_hpr = Vec3(
+            start_hpr.getX(),
+            start_hpr.getY() + 3,
+            start_hpr.getZ() + random.uniform(-1, 1)
+        )
+        
+        recoil_sequence = Sequence(
+            Parallel(
+                self.weapon.posInterval(
+                    0.04,
+                    recoil_pos,
+                    start_pos,
+                    blendType='easeOut'
+                ),
+                self.weapon.hprInterval(
+                    0.04,
+                    recoil_hpr,
+                    start_hpr,
+                    blendType='easeOut'
+                )
+            ),
+            Parallel(
+                self.weapon.posInterval(
+                    0.08,
+                    self.original_weapon_pos,
+                    recoil_pos,
+                    blendType='easeIn'
+                ),
+                self.weapon.hprInterval(
+                    0.08,
+                    self.original_weapon_hpr,
+                    recoil_hpr,
+                    blendType='easeIn'
+                )
+            )
+        )
+        
+        recoil_sequence.start()
 
     def updateKeyMap(self, key, value):
-        if self.chat_manager.is_chat_active or self.is_shader_debug_open:
+        if self.is_chat_active or self.is_shader_debug_open:
             self.keyMap[key] = False
             return
         self.keyMap[key] = value
 
     def start_jump(self):
-        self.movement_manager.start_jump()
-        # Sync legacy references
-        self.vertical_velocity = self.movement_manager.vertical_velocity
-        self.horizontal_velocity = self.movement_manager.horizontal_velocity
-        self.is_jumping = self.movement_manager.is_jumping
+        """Начинает прыжок и обновляет комбо прыжков"""
+        if self.is_splash_screen_active:  # Check if splash screen is active
+            return  # Ignore all actions during splash screen
+        if self.is_chat_active:
+            return
+
+        if not self.is_jumping:
+            # Увеличиваем множитель комбо при последовательных прыжках только если распрыжка включена
+            current_time = time.time()
+            
+            if self.settings.get('bhop_enabled', True):  # Проверяем, включена ли распрыжка
+                if current_time - self.last_jump_time < self.jump_combo_time:
+                    self.current_combo_jumps += 1
+                    for stage in self.combo_stages:
+                        if stage['jumps'] == self.current_combo_jumps:
+                            self.jump_combo_multiplier = stage['multiplier']
+                            break
+                else:
+                    self.current_combo_jumps = 1
+                    self.jump_combo_multiplier = 1.0
+            else:
+                self.jump_combo_multiplier = 1.0
+                self.current_combo_jumps = 0
+            
+            self.vertical_velocity = self.jump_power
+            
+            move_vec = Vec3(0, 0, 0)
+            if self.keyMap["w"]: move_vec.setY(move_vec.getY() + 1)
+            if self.keyMap["s"]: move_vec.setY(move_vec.getY() - 1)
+            if self.keyMap["a"]: move_vec.setX(move_vec.getX() - 1)
+            if self.keyMap["d"]: move_vec.setX(move_vec.getX() + 1)
+            
+            if move_vec.length() > 0:
+                move_vec.normalize()
+                base_speed = self.sprint_speed if self.keyMap["shift"] else self.move_speed
+                self.horizontal_velocity = move_vec * base_speed * self.jump_combo_multiplier
+            else:
+                self.horizontal_velocity = Vec3(0, 0, 0)
+            
+            self.is_jumping = True
+            self.last_jump_time = current_time
+            
+            if self.combo_task:
+                taskMgr.remove(self.combo_task)
+            self.combo_task = taskMgr.doMethodLater(self.jump_combo_time, self.reset_jump_combo, 'reset_jump_combo')
 
     def reset_jump_combo(self, task):
-        return self.movement_manager.reset_jump_combo(task)
+        """Сбрасывает комбо прыжков и скорости"""
+        self.jump_combo_multiplier = 1.0
+        self.current_combo_jumps = 0
+        self.horizontal_velocity = Vec3(0, 0, 0)
+        return task.done
 
     def reset_shoot(self, task):
         self.can_shoot = True
@@ -1009,7 +1807,7 @@ class Game(ShowBase):
     def shoot(self):
         if self.is_splash_screen_active:  # Check if splash screen is active
             return  # Ignore all actions during splash screen
-        if self.chat_manager.is_chat_active or self.is_shader_debug_open:
+        if self.is_chat_active or self.is_shader_debug_open:
             return
         if not self.can_local_multiplayer_act():
             return
@@ -1321,8 +2119,8 @@ class Game(ShowBase):
         if self.is_shader_debug_open:
             self.toggle_shader_debug_panel()
             return
-        if self.chat_manager.is_chat_active:
-            self.chat_manager.close_chat_input()
+        if self.is_chat_active:
+            self.close_chat_input()
             return
 
         if not self.pause_menu:
@@ -1344,24 +2142,27 @@ class Game(ShowBase):
             self.toggle_shader_debug_panel()
             
         if hasattr(self, 'score_text'):
-            self.hud_manager.score_text.hide()
+            self.score_text.hide()
         if hasattr(self, 'timer_text'):
-            self.hud_manager.timer_text.hide()
-        if hasattr(self, 'chat_manager'):
-            self.chat_manager.cleanup()
+            self.timer_text.hide()
+        if hasattr(self, 'chat_entry'):
+            self.chat_entry["focus"] = 0
+            self.chat_entry.hide()
+        if hasattr(self, 'chat_text'):
+            self.chat_text.hide()
         if hasattr(self, 'scoreboard_text'):
-            self.hud_manager.scoreboard_text.hide()
+            self.scoreboard_text.hide()
         if hasattr(self, 'hp_text'):
-            self.hud_manager.hp_text.hide()
+            self.hp_text.hide()
         if hasattr(self, 'kd_text'):
-            self.hud_manager.kd_text.hide()
+            self.kd_text.hide()
         if hasattr(self, 'death_overlay'):
-            self.hud_manager.death_overlay.hide()
+            self.death_overlay.hide()
         if hasattr(self, 'death_text'):
-            self.hud_manager.death_text.hide()
+            self.death_text.hide()
         if hasattr(self, 'hurt_flash'):
-            self.hud_manager.hurt_flash.hide()
-        self.chat_manager.is_chat_active = False
+            self.hurt_flash.hide()
+        self.is_chat_active = False
         self.show_scoreboard = False
             
         self.taskMgr.remove("update")
@@ -1395,7 +2196,7 @@ class Game(ShowBase):
             pool_size = max(target_count * 2, 30)
             self.target_pool = TargetPool(self, initial_size=pool_size)
             self.target_pool.initialize(Target)
-            print(f"OK: TargetPool создан с размером {pool_size}")
+            print(f"✅ TargetPool создан с размером {pool_size}")
         
         props = WindowProperties()
         props.setCursorHidden(True)
@@ -1407,33 +2208,22 @@ class Game(ShowBase):
         self.targets.clear()
         
         self.setup_targets()
-        self.weapon_manager_new.setup_weapon()
-
-        # Update legacy references after setup
-        self.weapon = self.weapon_manager_new.weapon
-        self.weapon_models = self.weapon_manager_new.weapon_models
-        self.weapon_model = self.weapon_manager_new.weapon_model
-        self.original_weapon_pos = self.weapon_manager_new.original_weapon_pos
-        self.original_weapon_hpr = self.weapon_manager_new.original_weapon_hpr
-        self.default_weapon_pos = self.weapon_manager_new.default_weapon_pos
-        self.ads_weapon_pos = self.weapon_manager_new.ads_weapon_pos
-        self.ads_fov = self.weapon_manager_new.ads_fov
+        self.setup_weapon()
         self.shader_system.rebind_scene_objects()
         
         self.taskMgr.add(self.update, "update")
-        self.taskMgr.add(self.update_aim, "update_aim")
         self.accept("mouse1", self.on_mouse_press)
         self.accept("mouse1-up", self.on_mouse_release)
         
         self.score = 0
         self.start_time = time.time()
-        self.hud_manager.update_score_display()
-        self.hud_manager.update_timer_display()
+        self.update_score_display()
+        self.update_timer_display()
         self.mp_spawn_synced = False
-        self.hud_manager.hurt_flash_alpha = 0.0
-        self.hud_manager.hurt_flash.hide()
-        self.hud_manager.death_overlay.hide()
-        self.hud_manager.death_text.hide()
+        self.hurt_flash_alpha = 0.0
+        self.hurt_flash.hide()
+        self.death_overlay.hide()
+        self.death_text.hide()
         if self.is_multiplayer:
             self.mp_local_hp = 100
             self.mp_local_max_hp = 100
@@ -1441,18 +2231,33 @@ class Game(ShowBase):
             self.mp_local_deaths = 0
             self.mp_local_alive = True
             self.mp_local_respawn_at = 0.0
-            self.hud_manager.update_multiplayer_hud()
+            self.update_multiplayer_hud()
         else:
-            self.hud_manager.hp_text.hide()
-            self.hud_manager.kd_text.hide()
+            self.hp_text.hide()
+            self.kd_text.hide()
         
         if self.show_score:
-            self.hud_manager.score_text.show()
+            self.score_text.show()
         if self.show_timer:
-            self.hud_manager.timer_text.show()
-            self.taskMgr.add(self.hud_manager.update_timer_task, "timer_task")
+            self.timer_text.show()
+            self.taskMgr.add(self.update_timer_task, "timer_task")
         
-        self.audio_manager.setup_audio()
+        self.setup_audio()
+
+    def update_score_display(self):
+        self.score_text.setText(f"Score: {self.score}")
+    
+    def update_timer_display(self):
+        minutes = int(self.game_time) // 60
+        seconds = int(self.game_time) % 60
+        self.timer_text.setText(f"Time: {minutes}:{seconds:02d}")
+    
+    def update_timer_task(self, task):
+        if not self.show_timer:
+            return task.done
+        self.game_time = time.time() - self.start_time
+        self.update_timer_display()
+        return task.cont
 
     def can_local_multiplayer_act(self):
         if not (self.is_multiplayer and self.network and self.network.is_connected()):
@@ -1491,18 +2296,60 @@ class Game(ShowBase):
         self.reset_multiplayer_motion_state()
         self.mp_spawn_synced = True
 
-    def update_multiplayer_feedback(self, dt: float):
-        if self.hud_manager.hurt_flash_alpha > 0.0:
-            self.hud_manager.hurt_flash_alpha = max(0.0, self.hud_manager.hurt_flash_alpha - (2.2 * dt))
-            self.hud_manager.hurt_flash.setColor(0.85, 0.05, 0.05, self.hud_manager.hurt_flash_alpha)
-            if self.hud_manager.hurt_flash_alpha > 0.0:
-                self.hud_manager.hurt_flash.show()
-            else:
-                self.hud_manager.hurt_flash.hide()
-        else:
-            self.hud_manager.hurt_flash.hide()
+    def trigger_hurt_flash(self, intensity=0.6):
+        clamped = max(0.0, min(0.85, float(intensity)))
+        self.hurt_flash_alpha = max(self.hurt_flash_alpha, clamped)
+        self.hurt_flash.show()
 
-        self.hud_manager.update_multiplayer_hud()
+    def update_multiplayer_hud(self):
+        if not (self.is_multiplayer and self.network and self.network.is_connected()):
+            self.hp_text.hide()
+            self.kd_text.hide()
+            self.death_overlay.hide()
+            self.death_text.hide()
+            return
+
+        self.hp_text.show()
+        self.kd_text.show()
+        self.kd_text.setText(f"K/D: {self.mp_local_kills}/{self.mp_local_deaths}")
+
+        if self.mp_local_alive:
+            self.hp_text.setText(f"HP: {self.mp_local_hp}/{self.mp_local_max_hp}")
+            hp_fraction = 1.0
+            if self.mp_local_max_hp > 0:
+                hp_fraction = max(0.0, min(1.0, self.mp_local_hp / float(self.mp_local_max_hp)))
+            if hp_fraction <= 0.25:
+                self.hp_text.setFg((1.0, 0.35, 0.35, 1.0))
+            elif hp_fraction <= 0.6:
+                self.hp_text.setFg((1.0, 0.8, 0.35, 1.0))
+            else:
+                self.hp_text.setFg((0.5, 1.0, 0.5, 1.0))
+            self.death_overlay.hide()
+            self.death_text.hide()
+            return
+
+        server_time = time.time()
+        if self.network and self.network.is_connected():
+            server_time = self.network.get_estimated_server_time()
+        respawn_in = max(0.0, float(self.mp_local_respawn_at or 0.0) - server_time)
+        self.hp_text.setText("HP: DEAD")
+        self.hp_text.setFg((1.0, 0.35, 0.35, 1.0))
+        self.death_overlay.show()
+        self.death_text.setText(f"You Died\nRespawn in {respawn_in:.1f}s")
+        self.death_text.show()
+
+    def update_multiplayer_feedback(self, dt: float):
+        if self.hurt_flash_alpha > 0.0:
+            self.hurt_flash_alpha = max(0.0, self.hurt_flash_alpha - (2.2 * dt))
+            self.hurt_flash.setColor(0.85, 0.05, 0.05, self.hurt_flash_alpha)
+            if self.hurt_flash_alpha > 0.0:
+                self.hurt_flash.show()
+            else:
+                self.hurt_flash.hide()
+        else:
+            self.hurt_flash.hide()
+
+        self.update_multiplayer_hud()
 
     def refresh_hitbox_debug_visibility(self):
         enabled = bool(self.settings.get("show_hitbox_debug", False))
@@ -1517,7 +2364,7 @@ class Game(ShowBase):
         self.settings["show_hitbox_debug"] = enabled
         self.refresh_hitbox_debug_visibility()
         if save:
-            self.settings_manager.save_settings()
+            self.save_settings()
         state = "ON" if enabled else "OFF"
         print(f"[Debug] Multiplayer player hitboxes: {state}")
 
@@ -1540,14 +2387,14 @@ class Game(ShowBase):
         new_score = int(state.get("score", self.score))
         if new_score != self.score:
             self.score = new_score
-            self.hud_manager.update_score_display()
+            self.update_score_display()
 
         if self.mp_local_alive and (not self.mp_spawn_synced or not was_alive):
             self.sync_local_multiplayer_spawn(state)
         elif not self.mp_local_alive and was_alive:
             self.reset_multiplayer_motion_state()
 
-        self.hud_manager.update_multiplayer_hud()
+        self.update_multiplayer_hud()
 
     def handle_collision(self, entry):
         if self.is_multiplayer:
@@ -1584,7 +2431,7 @@ class Game(ShowBase):
         self.score += points
         
         if hasattr(self, 'score_text') and self.show_score:
-            self.hud_manager.score_text.setText(f"Score: {self.score}")
+            self.score_text.setText(f"Score: {self.score}")
         
         hit_pos = entry.getSurfacePoint(self.render)
         
@@ -1619,6 +2466,8 @@ class Game(ShowBase):
         damage_multipliers = {
             "target_head": 2.0,
             "target_body": 1.0,
+            "target_left_arm": 0.75,
+            "target_right_arm": 0.75,
             "target_legs": 0.75
         }
         
@@ -1751,7 +2600,7 @@ class Game(ShowBase):
                 if not result.get("hit"):
                     continue
                 self.score = int(result.get("new_score", self.score))
-                self.hud_manager.update_score_display()
+                self.update_score_display()
                 if hit_pos and self.settings.get('damage_numbers', True):
                     if hit_type == "player":
                         points = int(result.get("damage", 0))
@@ -1772,8 +2621,8 @@ class Game(ShowBase):
                 self.mp_local_alive = victim_alive
                 self.mp_local_hp = max(0, int(victim_hp))
                 self.mouse_pressed = False
-                self.hud_manager.trigger_hurt_flash(0.85 if not victim_alive else 0.55)
-                self.hud_manager.update_multiplayer_hud()
+                self.trigger_hurt_flash(0.85 if not victim_alive else 0.55)
+                self.update_multiplayer_hud()
 
             # Visualize remote shots from authoritative server events.
             origin = result.get("origin")
@@ -1810,14 +2659,130 @@ class Game(ShowBase):
         return task.done
 
     def create_killfeed_message(self, target_name="Target"):
-        self.killfeed_manager.create_message(target_name)
-        # Sync legacy reference
-        self.killfeed_messages = self.killfeed_manager.messages
+        """Создает новое сообщение в килфиде"""
+        hud_scale = self.get_hud_ui_scale()
+        y_pos = 0.9 - len(self.killfeed_messages) * 0.06
+        x_pos = 1.3 + self.killfeed_slide_distance
+        
+        message = OnscreenText(
+            text=f"You killed {target_name}",
+            fg=(0.3, 0.6, 1, 0),
+            shadow=(0, 0, 0, 0),
+            pos=(x_pos, y_pos),
+            align=TextNode.ARight,
+            scale=0.04 * hud_scale
+        )
+        message.setBin('gui-popup', 0)
+
+        frame_root = aspect2d.attachNewNode("frame_root")
+        frame_root.setPos(x_pos, 0, y_pos)
+        frame_root.setScale(hud_scale)
+        
+        cm = CardMaker('killfeed_bg')
+        cm.setFrame(-0.5, 0.05, -0.015, 0.025)
+        bg = frame_root.attachNewNode(cm.generate())
+        bg.setTransparency(TransparencyAttrib.MAlpha)
+        bg.setColor(0, 0, 0, 0)
+        bg.setBin('background', 10)
+        
+        border_thickness = 0.002
+        borders = []
+        
+        cm_top = CardMaker('border_top')
+        cm_top.setFrame(-0.5, 0.05, 0.025, 0.025 + border_thickness)
+        border_top = frame_root.attachNewNode(cm_top.generate())
+        border_top.setColor(1, 1, 1, 0)
+        border_top.setTransparency(TransparencyAttrib.MAlpha)
+        border_top.setBin('background', 11)
+        borders.append(border_top)
+        
+        cm_bottom = CardMaker('border_bottom')
+        cm_bottom.setFrame(-0.5, 0.05, -0.015 - border_thickness, -0.015)
+        border_bottom = frame_root.attachNewNode(cm_bottom.generate())
+        border_bottom.setColor(1, 1, 1, 0)
+        border_bottom.setTransparency(TransparencyAttrib.MAlpha)
+        border_bottom.setBin('background', 11)
+        borders.append(border_bottom)
+        
+        cm_left = CardMaker('border_left')
+        cm_left.setFrame(-0.5 - border_thickness, -0.5, -0.015, 0.025)
+        border_left = frame_root.attachNewNode(cm_left.generate())
+        border_left.setColor(1, 1, 1, 0)
+        border_left.setTransparency(TransparencyAttrib.MAlpha)
+        border_left.setBin('background', 11)
+        borders.append(border_left)
+        
+        cm_right = CardMaker('border_right')
+        cm_right.setFrame(0.05, 0.05 + border_thickness, -0.015, 0.025)
+        border_right = frame_root.attachNewNode(cm_right.generate())
+        border_right.setColor(1, 1, 1, 0)
+        border_right.setTransparency(TransparencyAttrib.MAlpha)
+        border_right.setBin('background', 11)
+        borders.append(border_right)
+        
+        self.killfeed_messages.append({
+            'message': message,
+            'frame_root': frame_root,
+            'background': bg,
+            'borders': borders,
+            'creation_time': globalClock.getFrameTime(),
+            'y_pos': y_pos,
+            'x_pos': x_pos,
+            'alpha': 0,
+            'target_alpha': 1,
+            'x_offset': self.killfeed_slide_distance
+        })
+        
+        if len(self.killfeed_messages) > 5:
+            oldest = self.killfeed_messages[0]
+            oldest['target_alpha'] = 0
 
     def update_killfeed_positions(self):
-        self.killfeed_manager.update_positions()
-        # Sync legacy reference
-        self.killfeed_messages = self.killfeed_manager.messages
+        """Обновляет позиции всех сообщений в килфиде"""
+        current_time = globalClock.getFrameTime()
+        messages_to_remove = []
+        
+        for i, msg_data in enumerate(self.killfeed_messages):
+            age = current_time - msg_data['creation_time']
+            
+            if msg_data['alpha'] != msg_data['target_alpha']:
+                alpha_change = globalClock.getDt() / self.killfeed_fade_time
+                if msg_data['target_alpha'] > msg_data['alpha']:
+                    msg_data['alpha'] = min(msg_data['target_alpha'], msg_data['alpha'] + alpha_change)
+                else:
+                    msg_data['alpha'] = max(msg_data['target_alpha'], msg_data['alpha'] - alpha_change)
+                
+                msg_data['message'].setFg((0.3, 0.6, 1, msg_data['alpha']))
+                msg_data['message'].setShadow((0, 0, 0, msg_data['alpha']))
+                msg_data['background'].setColor(0, 0, 0, msg_data['alpha'] * 0.3)
+                for border in msg_data['borders']:
+                    border.setColor(1, 1, 1, msg_data['alpha'] * 0.8)
+            
+            if msg_data['x_offset'] > 0:
+                slide_speed = self.killfeed_slide_distance / self.killfeed_fade_time
+                msg_data['x_offset'] = max(0, msg_data['x_offset'] - slide_speed * globalClock.getDt())
+                new_x = 1.3 + msg_data['x_offset']
+                
+                msg_data['message'].setPos(new_x, msg_data['y_pos'])
+                msg_data['frame_root'].setPos(new_x, 0, msg_data['y_pos'])
+                msg_data['x_pos'] = new_x
+            
+            if age > 5.0 and msg_data['target_alpha'] == 1:
+                msg_data['target_alpha'] = 0
+            
+            if msg_data['alpha'] <= 0 and msg_data['target_alpha'] == 0:
+                messages_to_remove.append(msg_data)
+            
+            target_y = 0.9 - i * 0.06
+            if msg_data['y_pos'] != target_y:
+                msg_data['y_pos'] = target_y
+                msg_data['message'].setPos(msg_data['x_pos'], target_y)
+                msg_data['frame_root'].setPos(msg_data['x_pos'], 0, target_y)
+        
+        for msg_data in messages_to_remove:
+            msg_data['message'].removeNode()
+            msg_data['frame_root'].removeNode()
+            self.killfeed_messages.remove(msg_data)
 
     def update(self, task):
         """Обновление состояния игры"""
@@ -1838,7 +2803,7 @@ class Game(ShowBase):
         
         scaled_dt = dt * self.current_time_scale
         
-        self.hud_manager.update_score_display()
+        self.update_score_display()
         
         self.fps_text.setText(f"FPS: {self.fps}")
         self.pos_text.setText(f"Pos: ({self.camera.getX():.1f}, {self.camera.getY():.1f}, {self.camera.getZ():.1f})")
@@ -1884,41 +2849,35 @@ class Game(ShowBase):
         
         speed = (self.sprint_speed if self.keyMap["shift"] else self.move_speed) * self.current_time_scale
         if self.is_jumping:
-            speed *= self.movement_manager.jump_combo_multiplier
-
+            speed *= self.jump_combo_multiplier
+            
         if move_vec.length() > 0:
             self.horizontal_velocity = move_vec * speed
-            self.movement_manager.horizontal_velocity = self.horizontal_velocity
         elif not self.is_jumping:
             self.horizontal_velocity = Vec3(0, 0, 0)
-            self.movement_manager.horizontal_velocity = Vec3(0, 0, 0)
-
+            
         if self.horizontal_velocity.length() > 0:
             self.camera.setPos(
                 self.camera.getX() + self.horizontal_velocity.getX() * scaled_dt,
                 self.camera.getY() + self.horizontal_velocity.getY() * scaled_dt,
                 self.camera.getZ()
             )
-
+        
         if self.is_jumping:
             self.vertical_velocity += self.gravity * scaled_dt
-            self.movement_manager.vertical_velocity = self.vertical_velocity
             new_z = self.camera.getZ() + self.vertical_velocity * scaled_dt
-
+            
             if new_z <= self.camera_height:
                 new_z = self.camera_height
                 self.vertical_velocity = 0
                 self.is_jumping = False
-                self.movement_manager.vertical_velocity = 0
-                self.movement_manager.is_jumping = False
                 self.jump_speed_boost = 1.0
                 if move_vec.length() == 0:
                     self.horizontal_velocity = Vec3(0, 0, 0)
-                    self.movement_manager.horizontal_velocity = Vec3(0, 0, 0)
-
+            
             self.camera.setZ(new_z)
             
-        if self.mouseWatcherNode.hasMouse() and not self.chat_manager.is_chat_active and not self.is_shader_debug_open and can_control_local_player:
+        if self.mouseWatcherNode.hasMouse() and not self.is_chat_active and not self.is_shader_debug_open and can_control_local_player:
             mouse_x = self.mouseWatcherNode.getMouseX()
             mouse_y = self.mouseWatcherNode.getMouseY()
             
@@ -1954,7 +2913,7 @@ class Game(ShowBase):
                 self.shoot()
         
         self.update_killfeed_positions()
-        self.chat_manager.refresh_chat_display()
+        self.refresh_chat_display()
         
         self.update_aim(task)
         self.shader_system.update(dt)
@@ -1965,7 +2924,7 @@ class Game(ShowBase):
                 self.apply_targets_state(snapshot)
             self.process_network_shot_results()
             for chat in self.network.consume_chat_messages():
-                self.chat_manager.add_chat_line(chat.get("name", "Player"), chat.get("text", ""))
+                self.add_chat_line(chat.get("name", "Player"), chat.get("text", ""))
             self.apply_local_multiplayer_state(self.network.get_local_player_state())
 
             if self.show_scoreboard:
@@ -1978,7 +2937,7 @@ class Game(ShowBase):
                     pdeaths = int(p.get("deaths", 0))
                     php = "DEAD" if not p.get("alive", True) else str(int(p.get("hp", 0)))
                     lines.append(f"{idx}. {pname} | S:{pscore} | K/D:{pkills}/{pdeaths} | HP:{php}")
-                self.hud_manager.scoreboard_text.setText("\n".join(lines))
+                self.scoreboard_text.setText("\n".join(lines))
 
             self.is_shooting = self.shoot_state_frames > 0 and self.can_local_multiplayer_act()
             self.network.send_state(
@@ -1999,40 +2958,178 @@ class Game(ShowBase):
 
     def update_aim(self, task):
         """Обновление анимации прицеливания"""
-        result = self.weapon_manager_new.update_aim(task)
-        # Sync legacy references
-        self.is_aiming = self.weapon_manager_new.is_aiming
-        self.aim_transition = self.weapon_manager_new.aim_transition
-        self.mouse_sensitivity = self.weapon_manager_new.game.mouse_sensitivity
-        return result
+        if self.is_aiming and self.aim_transition < 1.0:
+            self.aim_transition = min(1.0, self.aim_transition + 0.1)
+        elif not self.is_aiming and self.aim_transition > 0.0:
+            self.aim_transition = max(0.0, self.aim_transition - 0.1)
+            
+        default_pos = self.default_weapon_pos[self.current_weapon]["pos"]
+        ads_pos = self.ads_weapon_pos[self.current_weapon]["pos"]
+        current_pos = default_pos + (ads_pos - default_pos) * self.aim_transition
+        
+        self.weapon_models[self.current_weapon].setPos(current_pos)
+        
+        default_fov = self.settings["fov"]
+        target_fov = default_fov + (self.ads_fov[self.current_weapon] - default_fov) * self.aim_transition
+        base.camLens.setFov(target_fov)
+        
+        base_sensitivity = self.settings["sensitivity"]
+        
+        if self.is_aiming:
+            sensitivity = base_sensitivity * self.ads_sensitivity_multiplier
+        else:
+            sensitivity = base_sensitivity
+        
+        self.mouse_sensitivity = sensitivity
+        
+        return task.cont
 
     def start_aiming(self):
         """Начало прицеливания"""
-        self.weapon_manager_new.start_aiming()
-        self.is_aiming = self.weapon_manager_new.is_aiming
-
+        self.is_aiming = True
+        
     def stop_aiming(self):
         """Конец прицеливания"""
-        self.weapon_manager_new.stop_aiming()
-        self.is_aiming = self.weapon_manager_new.is_aiming
+        self.is_aiming = False
 
     def switch_weapon(self, weapon_name):
-        """Переключает оружие"""
-        self.weapon_manager_new.switch_weapon(weapon_name)
-        # Sync legacy references
-        self.current_weapon = self.weapon_manager_new.current_weapon
-        self.weapon_model = self.weapon_manager_new.weapon_model
-        self.shoot_cooldown = self.weapon_manager_new.shoot_cooldown
-        self.last_shot_time = self.weapon_manager_new.last_shot_time
-        self.weapon_animation = self.weapon_manager_new.weapon_animation
-        self.is_drawing_weapon = self.weapon_manager_new.is_drawing_weapon
+        if self.is_splash_screen_active:
+            return
+        
+        if weapon_name in self.weapon_models and weapon_name != self.current_weapon:
+            if self.weapon_animation:
+                self.weapon_animation.finish()
+                self.weapon_animation = None
+            
+            if self.current_weapon:
+                self.weapon_models[self.current_weapon].hide()
+            
+            self.current_weapon = weapon_name
+            self.weapon_model = self.weapon_models[weapon_name]
+            self.weapon_model.show()
+            self.shader_system.rebind_scene_objects()
+            
+            self.shoot_cooldown = self.weapons[weapon_name]["cooldown"]
+            self.last_shot_time = 0
+            
+            self.play_weapon_draw_animation()
 
     def play_weapon_draw_animation(self):
-        """Проигрывает анимацию доставания оружия"""
-        self.weapon_manager_new.play_weapon_draw_animation()
-        # Sync legacy references
-        self.is_drawing_weapon = self.weapon_manager_new.is_drawing_weapon
-        self.weapon_animation = self.weapon_manager_new.weapon_animation
+        if self.weapon_animation:
+            self.weapon_animation.finish()
+            self.weapon_animation = None
+        
+        self.is_drawing_weapon = True
+        
+        if self.current_weapon == "dual_revolvers":
+            left_revolver = self.weapon_models["dual_revolvers"].find("left_revolver")
+            right_revolver = self.weapon_models["dual_revolvers"].find("right_revolver")
+            
+            left_revolver.setPos(0, -1.0, -0.5)
+            right_revolver.setPos(0, -1.0, -0.5)
+            left_revolver.setHpr(-180, 0, 180)
+            right_revolver.setHpr(-180, 0, 180)
+            
+            left_sequence = Sequence(
+                Parallel(
+                    left_revolver.posInterval(
+                        0.15,
+                        Point3(-1.0, 0.2, -0.3),
+                        startPos=Point3(0, -1.0, -0.5),
+                        blendType='easeOut'
+                    ),
+                    left_revolver.hprInterval(
+                        0.15,
+                        Point3(-90, -30, 90),
+                        startHpr=Point3(-180, 0, 180),
+                        blendType='easeOut'
+                    )
+                ),
+                Parallel(
+                    left_revolver.posInterval(
+                        0.25,
+                        Point3(-2.0, 0.6, -0.2),
+                        blendType='easeOut'
+                    ),
+                    left_revolver.hprInterval(
+                        0.25,
+                        Point3(0, 0, 0),
+                        blendType='easeOut'
+                    )
+                )
+            )
+            
+            right_sequence = Sequence(
+                Wait(0.1),
+                Parallel(
+                    right_revolver.posInterval(
+                        0.15,
+                        Point3(0.0, 0.2, -0.3),
+                        startPos=Point3(0, -1.0, -0.5),
+                        blendType='easeOut'
+                    ),
+                    right_revolver.hprInterval(
+                        0.15,
+                        Point3(-90, -30, 90),
+                        startHpr=Point3(-180, 0, 180),
+                        blendType='easeOut'
+                    )
+                ),
+                Parallel(
+                    right_revolver.posInterval(
+                        0.25,
+                        Point3(0.4, 0.6, -0.2),
+                        blendType='easeOut'
+                    ),
+                    right_revolver.hprInterval(
+                        0.25,
+                        Point3(0, 0, 0),
+                        blendType='easeOut'
+                    )
+                )
+            )
+            
+            self.weapon_animation = Parallel(
+                left_sequence,
+                right_sequence,
+                name="dual_revolvers_draw"
+            )
+            
+            self.weapon_animation.start()
+        else:
+            self.weapon_model.setPos(0.25, 0.6, -1.0)
+            self.weapon_model.setHpr(30, -30, 0)
+            
+            pos_interval = LerpPosInterval(
+                self.weapon_model,
+                duration=0.4,
+                pos=Point3(0.25, 0.6, -0.3),
+                startPos=Point3(0.25, 0.6, -1.0),
+                blendType='easeOut'
+            )
+            
+            rot_interval = LerpHprInterval(
+                self.weapon_model,
+                duration=0.4,
+                hpr=Vec3(0, 0, 0),
+                startHpr=Vec3(30, -30, 0),
+                blendType='easeOut'
+            )
+            
+            self.weapon_animation = Parallel(
+                pos_interval,
+                rot_interval,
+                name="weapon_draw"
+            )
+        
+        def finish_animation():
+            self.is_drawing_weapon = False
+            self.weapon_animation = None
+        
+        self.weapon_animation.setDoneEvent('weaponDrawComplete')
+        self.accept('weaponDrawComplete', finish_animation)
+        
+        self.weapon_animation.start()
 
     def update_mouse_sensitivity(self):
         """Обновляет чувствительность мыши на основе настроек"""
@@ -2083,17 +3180,149 @@ class Game(ShowBase):
         
         return Task.cont
 
+    def setup_audio(self):
+        """Настраивает и запускает фоновую музыку"""
+        audio_settings = self.settings.get('audio', self.DEFAULT_SETTINGS['audio'])
+        
+        if audio_settings['music_enabled']:
+            self.play_music(audio_settings['current_track'], audio_settings['music_volume'])
+
+    def play_music(self, track_name, volume=0.5):
+        """Воспроизводит фоновую музыку с указанным объемом"""
+        if self.is_splash_screen_active:
+            return
+        
+        if self.music:
+            self.music.stop()
+        
+        music_path = f"music/{track_name}"
+        
+        try:
+            self.music = loader.loadSfx(music_path)
+            if self.music:
+                self.music.setLoop(True)
+                self.music.setVolume(volume)
+                self.music.play()
+                self.current_music_path = music_path
+        except Exception as e:
+            print(f"Ошибка загрузки музыки: {e}")
+
+    def update_music_volume(self, volume):
+        """Обновляет объем текущей воспроизводимой музыки"""
+        if self.music:
+            self.music.setVolume(volume)
+            
+        if 'audio' not in self.settings:
+            self.settings['audio'] = self.DEFAULT_SETTINGS['audio'].copy()
+        self.settings['audio']['music_volume'] = volume
+        self.save_settings()
+
+    def change_music_track(self, track_name):
+        """???????? ??????? ???? ??????"""
+        if 'audio' not in self.settings:
+            self.settings['audio'] = self.DEFAULT_SETTINGS['audio'].copy()
+            
+        self.settings['audio']['current_track'] = track_name
+        self.save_settings()
+        
+        if self.settings['audio']['music_enabled']:
+            self.play_music(track_name, self.settings['audio']['music_volume'])
+
+    def toggle_music(self, enabled):
+        """Включает/выключает фоновую музыку"""
+        if 'audio' not in self.settings:
+            self.settings['audio'] = self.DEFAULT_SETTINGS['audio'].copy()
+            
+        self.settings['audio']['music_enabled'] = enabled
+        self.save_settings()
+        
+        if enabled:
+            self.play_music(self.settings['audio']['current_track'], self.settings['audio']['music_volume'])
+        elif self.music:
+            self.music.stop()
+
+    def add_chat_line(self, name: str, text: str):
+        clean_name = (name or "Player").strip()[:24]
+        clean_text = (text or "").strip()[:180]
+        if not clean_text:
+            return
+        self.chat_messages.append({
+            "t": time.time(),
+            "line": f"{clean_name}: {clean_text}",
+        })
+        if len(self.chat_messages) > 30:
+            self.chat_messages = self.chat_messages[-30:]
+        self.refresh_chat_display()
+
+    def refresh_chat_display(self):
+        now = time.time()
+        if self.is_chat_active:
+            visible = self.chat_messages[-8:]
+        else:
+            self.chat_messages = [
+                m for m in self.chat_messages
+                if now - float(m.get("t", now)) <= self.chat_message_lifetime
+            ]
+            visible = self.chat_messages[-6:]
+
+        if not visible:
+            self.chat_text.setText("")
+            self.chat_text.hide()
+            return
+
+        lines = [m.get("line", "") for m in reversed(visible)]
+        self.chat_text.setText("\n".join(lines))
+        self.chat_text.show()
+
+    def toggle_chat_input(self):
+        now = time.time()
+        if now - self.chat_last_toggle_time < 0.2:
+            return
+        self.chat_last_toggle_time = now
+
+        if self.is_splash_screen_active:
+            return
+        if not (self.is_multiplayer and self.network and self.network.is_connected()):
+            return
+
+        if not self.is_chat_active:
+            self.is_chat_active = True
+            self.chat_entry.enterText("")
+            self.chat_entry.show()
+            self.chat_entry["focus"] = 1
+            self.mouse_pressed = False
+            for key in self.keyMap:
+                self.keyMap[key] = False
+            self.refresh_chat_display()
+        else:
+            self.close_chat_input()
+
+    def submit_chat_message(self, text):
+        if self.network and self.network.is_connected():
+            msg = (text or "").strip()
+            if msg:
+                self.network.send_chat(msg)
+        self.chat_entry.enterText("")
+        self.close_chat_input()
+
+    def close_chat_input(self):
+        self.chat_entry["focus"] = 0
+        self.chat_entry.hide()
+        self.is_chat_active = False
+        self.chat_last_toggle_time = time.time()
+        self.refresh_chat_display()
+
     def on_tab_down(self):
         if self.is_splash_screen_active:
             return
         if not (self.is_multiplayer and self.network and self.network.is_connected()):
             return
         self.show_scoreboard = True
-        self.hud_manager.scoreboard_text.show()
+        self.scoreboard_text.show()
 
     def on_tab_up(self):
         self.show_scoreboard = False
-        self.hud_manager.scoreboard_text.hide()
+        self.scoreboard_text.hide()
 
     def cycle_weapon(self, direction):
         if self.is_splash_screen_active:
@@ -2108,7 +3337,7 @@ class Game(ShowBase):
         """Обработчик нажатия кнопки мыши"""
         if self.is_splash_screen_active:
             return
-        if self.chat_manager.is_chat_active or self.is_shader_debug_open:
+        if self.is_chat_active or self.is_shader_debug_open:
             return
         
         self.mouse_pressed = True
@@ -2122,15 +3351,100 @@ class Game(ShowBase):
         self.mouse_pressed = False
 
     def create_shell_casing(self):
-        self.shell_manager.create_shell_casing()
-        # Sync legacy reference
-        self.active_shells = self.shell_manager.active_shells
+        """Создает анимацию выброса гильзы"""
+        if self.is_splash_screen_active:  
+            return 
+        
+        current_weapon_model = self.weapon_models[self.current_weapon]
+        
+        shell = self.shell_model.copyTo(render)
+        
+        if self.current_weapon == "pistol":
+            eject_offset = Vec3(0.1, 0.9, -0.1)
+        elif self.current_weapon == "rifle":
+            eject_offset = Vec3(0.1, 0.9, -0.05)
+        else:  # sniper
+            eject_offset = Vec3(0.1, 1.1, -0.05)
+
+        shell_parent = render.attachNewNode("shell_parent")
+        shell_parent.setPos(current_weapon_model.getPos(render))
+        shell_parent.setHpr(current_weapon_model.getHpr(render))
+        
+        shell.reparentTo(shell_parent)
+        shell.setPos(eject_offset)
+        
+        shell.wrtReparentTo(render)
+        
+        weapon_quat = current_weapon_model.getQuat(render)
+        right = weapon_quat.getRight()
+        up = weapon_quat.getUp()
+        forward = weapon_quat.getForward()
+        
+        ejection_speed = 3.0
+        vertical_speed = 1.0
+        
+        initial_velocity = Vec3()
+        initial_velocity += right * ejection_speed
+        initial_velocity += up * vertical_speed
+        
+        initial_velocity += Vec3(
+            random.uniform(-0.2, 0.2),
+            random.uniform(-0.2, 0.2),
+            random.uniform(0, 0.5)
+        )
+        
+        angular_velocity = Vec3(
+            random.uniform(-720, 720),
+            random.uniform(-720, 720),
+            random.uniform(-720, 720)
+        )
+        
+        shell_data = {
+            'model': shell,
+            'velocity': initial_velocity,
+            'angular_velocity': angular_velocity,
+            'time': 0
+        }
+        self.active_shells.append(shell_data)
+        
+        taskMgr.doMethodLater(2.0, self.remove_shell, 'remove_shell', 
+                            extraArgs=[shell_data], appendTask=True)
 
     def update_shells(self, task):
-        return self.shell_manager.update_shells(task)
+        """Обновляет физику гильз"""
+        if self.is_splash_screen_active:
+            return task.cont
+        
+        dt = globalClock.getDt()
+        gravity = Vec3(0, 0, -9.8)
+        
+        for shell in self.active_shells:
+            shell['time'] += dt
+            
+            current_pos = shell['model'].getPos()
+            shell['velocity'] += gravity * dt
+            new_pos = current_pos + shell['velocity'] * dt
+            shell['model'].setPos(new_pos)
+            
+            current_hpr = shell['model'].getHpr()
+            rotation = shell['angular_velocity'] * dt
+            new_hpr = current_hpr + rotation
+            shell['model'].setHpr(new_hpr)
+            
+            if new_pos.getZ() < 0:
+                new_pos.setZ(0)
+                shell['velocity'] = Vec3(0, 0, 0)
+                shell['angular_velocity'] = Vec3(0, 0, 0)
+                shell['model'].setPos(new_pos)
+        
+        return task.cont
 
     def remove_shell(self, shell_data, task):
-        return self.shell_manager.remove_shell(shell_data, task)
+        """Удаляет гильзу"""
+        if shell_data in self.active_shells:
+            self.active_shells.remove(shell_data)
+            shell_data['model'].removeNode()
+        return task.done
 
     def apply_settings(self, new_settings):
         self.settings.update(new_settings)
@@ -2147,15 +3461,94 @@ class Game(ShowBase):
         if 'show_hitbox_debug' in new_settings:
             self.refresh_hitbox_debug_visibility()
             
-        self.settings_manager.save_settings()
+        self.save_settings()
 
+    def validate_settings(self, settings):
+        """Валидация и нормализация настроек"""
+        if 'fov' in settings:
+            settings['fov'] = max(60, min(120, settings['fov']))
+        
+        if 'resolution' in settings:
+            try:
+                width, height = map(int, settings['resolution'].split('x'))
+                if width < 640 or height < 480:
+                    settings['resolution'] = '1280x720'
+            except:
+                settings['resolution'] = '1280x720'
+        
+        for key in [
+            'bloom_enabled', 'bloom_intensity',
+            'blur_enabled', 'blur_amount',
+            'cartoon_enabled', 'inverted_enabled',
+            'ao_enabled',
+            'motion_blur_enabled', 'motion_blur_amount',
+        ]:
+            settings.pop(key, None)
+
+        bool_keys = ['show_target_images', 'bhop_enabled', 'fullscreen', 'show_score', 
+                     'show_timer', 'damage_numbers', 'killfeed', 'show_fps', 
+                     'recoil_enabled', 'screen_shake_enabled', 'spread_enabled',
+                     'show_hitbox_debug']
+        
+        for key in bool_keys:
+            if key in settings:
+                if isinstance(settings[key], int):
+                    settings[key] = bool(settings[key])
+        
+        if 'sensitivity' in settings:
+            settings['sensitivity'] = max(1.0, settings['sensitivity'])
+        
+        if 'target_count' in settings:
+            settings['target_count'] = max(1, min(50, settings['target_count']))
+        
+        return settings
+    
+    def _get_settings_path(self):
+        """Возвращает путь к settings.json (работает с PyInstaller)"""
+        if hasattr(sys, 'frozen'):
+            # В PyInstaller - сохраняем рядом с exe
+            exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+            return os.path.join(exe_dir, 'settings.json')
+        else:
+            # В обычном режиме - в корне проекта
+            return 'settings.json'
+    
+    def load_settings(self):
+        settings_path = self._get_settings_path()
+        try:
+            with open(settings_path, 'r', encoding='utf-8') as f:
+                loaded = json.load(f)
+                loaded = self.validate_settings(loaded)
+                return loaded
+        except Exception as e:
+            print(f"⚠️ Ошибка загрузки настроек: {e}")
+            return self.DEFAULT_SETTINGS.copy()
+
+    def save_settings(self):
+        """Сохраняет текущие настройки в файл"""
+        self.settings['sensitivity'] = self.mouse_sensitivity
+        for key in [
+            'bloom_enabled', 'bloom_intensity',
+            'blur_enabled', 'blur_amount',
+            'cartoon_enabled', 'inverted_enabled',
+            'ao_enabled',
+            'motion_blur_enabled', 'motion_blur_amount',
+        ]:
+            self.settings.pop(key, None)
+        
+        settings_path = self._get_settings_path()
+        try:
+            with open(settings_path, 'w', encoding='utf-8') as f:
+                json.dump(self.settings, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving settings: {e}")
 
     def show_main_menu(self):
         """Вызывается экраном загрузки при завершении его работы"""
         if self.menu is None:
-            print("Warning: Меню не было создано в splash screen, создаем сейчас...")
+            print("⚠️ Меню не было создано в splash screen, создаем сейчас...")
             self.menu = MainMenu(self)
-        print("OK: Показываем главное меню")
+        print("✅ Показываем главное меню")
         self.menu.show()
     
     # ==================== РњРЈР›Р¬РўРРџР›Р•Р•Р  ====================
@@ -2194,16 +3587,14 @@ class Game(ShowBase):
     def start_multiplayer_game(self):
         """Запускает мультиплеерную игру"""
         if not self.network or not self.network.is_connected():
-            print("Warning: Не подключен к серверу!")
+            print("⚠️ Не подключен к серверу!")
             return
-
+        
         self.is_multiplayer = True
-
-        # Карта будет переключена автоматически когда сервер отправит game_start
-
+        
         if self.lobby_menu:
             self.lobby_menu.hide()
-
+        
         self.start_game()
     
     def update_remote_players(self, dt: float):
@@ -2254,27 +3645,27 @@ class Game(ShowBase):
             except Exception:
                 pass
         self.mp_targets_revision = -1
-        self.chat_manager.is_chat_active = False
+        self.is_chat_active = False
         self.show_scoreboard = False
-        self.chat_manager.chat_messages.clear()
+        self.chat_messages.clear()
         if hasattr(self, 'chat_entry'):
-            self.chat_manager.chat_entry["focus"] = 0
-            self.chat_manager.chat_entry.hide()
+            self.chat_entry["focus"] = 0
+            self.chat_entry.hide()
         if hasattr(self, 'chat_text'):
-            self.chat_manager.chat_text.setText("")
-            self.chat_manager.chat_text.hide()
+            self.chat_text.setText("")
+            self.chat_text.hide()
         if hasattr(self, 'scoreboard_text'):
-            self.hud_manager.scoreboard_text.hide()
+            self.scoreboard_text.hide()
         if hasattr(self, 'hp_text'):
-            self.hud_manager.hp_text.hide()
+            self.hp_text.hide()
         if hasattr(self, 'kd_text'):
-            self.hud_manager.kd_text.hide()
+            self.kd_text.hide()
         if hasattr(self, 'death_overlay'):
-            self.hud_manager.death_overlay.hide()
+            self.death_overlay.hide()
         if hasattr(self, 'death_text'):
-            self.hud_manager.death_text.hide()
+            self.death_text.hide()
         if hasattr(self, 'hurt_flash'):
-            self.hud_manager.hurt_flash.hide()
+            self.hurt_flash.hide()
         self.mp_local_hp = 100
         self.mp_local_max_hp = 100
         self.mp_local_kills = 0
@@ -2282,13 +3673,9 @@ class Game(ShowBase):
         self.mp_local_alive = True
         self.mp_local_respawn_at = 0.0
         self.mp_spawn_synced = False
-        self.hud_manager.hurt_flash_alpha = 0.0
-
+        self.hurt_flash_alpha = 0.0
+        
         self.is_multiplayer = False
-
-        # Возвращаем дефолтную карту
-        if hasattr(self, 'current_map') and self.current_map == "pvp":
-            self.switch_map("default")
 
         
 if __name__ == "__main__":

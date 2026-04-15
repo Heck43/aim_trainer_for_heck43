@@ -1,3 +1,4 @@
 panda3d==1.10.15
 numpy>=1.21.0
-imgui_bundle>=1.92.600
+imgui-bundle==1.92.4
+panda3d-imgui>=1.1.0

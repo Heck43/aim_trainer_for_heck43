@@ -77,8 +77,6 @@ WEAPON_CONFIG = {
 PLAYER_PART_OFFSETS = {
     "target_head": (0.0, 0.0, 0.00, 0.32),
     "target_body": (0.0, 0.0, -0.70, 0.50),
-    "target_left_arm": (-0.55, 0.0, -0.70, 0.26),
-    "target_right_arm": (0.55, 0.0, -0.70, 0.26),
     "target_legs": (0.0, 0.0, -1.45, 0.42),
 }
 
@@ -205,6 +203,7 @@ class GameServer:
         self.target_count = 10
         self.target_respawn_delay = 3.0
         self.target_mode = "default"
+        self.game_mode = "pve"  # pve (targets only) or pvp (players only)
         # Keep target snapshots available even before manual "start" command.
         self._create_targets()
 
@@ -270,6 +269,9 @@ class GameServer:
         print("  set mode <nsfw|sfw>")
         print("    Control target visual mode on all clients")
         print("    Aliases: nsfw/on/1/true, sfw/off/0/false")
+        print("  set gamemode <pvp|pve>")
+        print("    pvp: players only, no targets")
+        print("    pve: targets only, no player damage (default)")
         print("  help")
         print("    Show this help")
         print("  quit | exit")
@@ -458,8 +460,7 @@ class GameServer:
         if not isinstance(hitboxes, dict):
             return False
 
-        required_parts = ["target_head", "target_body", "target_left_arm",
-                         "target_right_arm", "target_legs"]
+        required_parts = ["target_head", "target_body", "target_legs"]
 
         for part in required_parts:
             if part not in hitboxes:
@@ -561,6 +562,12 @@ class GameServer:
     def _create_targets(self):
         self.targets.clear()
         self.next_target_id = 1
+
+        # В PvP режиме не создаем таргеты
+        if self.game_mode == "pvp":
+            self.state_revision += 1
+            return
+
         for _ in range(self.target_count):
             target_id = f"t{self.next_target_id}"
             self.next_target_id += 1
@@ -590,8 +597,8 @@ class GameServer:
 
             addresses = [p.address for p in self.players.values()]
 
-        self.log(f"Game started! Duration: {self.game_duration}s")
-        start_msg = Protocol.create_game_start(self.game_duration)
+        self.log(f"Game started! Duration: {self.game_duration}s, Mode: {self.game_mode}")
+        start_msg = Protocol.create_game_start(self.game_duration, self.game_mode)
         data = Protocol.encode(start_msg)
         for addr in addresses:
             try:
@@ -714,13 +721,12 @@ class GameServer:
         return best
 
     def _resolve_hit(self, shooter_id, origin, direction):
-        target_hit = self._resolve_target_hit(origin, direction)
-        player_hit = self._resolve_player_hit(shooter_id, origin, direction)
-        if target_hit and player_hit:
-            if player_hit["distance"] < target_hit["distance"]:
-                return player_hit
-            return target_hit
-        return player_hit or target_hit
+        # В PvP режиме проверяем только игроков
+        if self.game_mode == "pvp":
+            return self._resolve_player_hit(shooter_id, origin, direction)
+
+        # В PvE режиме проверяем только таргеты (без урона по игрокам)
+        return self._resolve_target_hit(origin, direction)
 
     def handle_shot(self, message: dict, address: tuple):
         now = time.time()
@@ -932,6 +938,7 @@ class GameServer:
             print(f"\nGame Phase: {snapshot['phase']}")
             if snapshot["phase"] == "playing":
                 print(f"Time Remaining: {snapshot['time_remaining']:.1f}s")
+            print(f"Game Mode: {self.game_mode}")
             print(
                 f"Target Count: {snapshot['target_count']} | "
                 f"Respawn: {snapshot['target_respawn_delay']:.2f}s | "
@@ -969,7 +976,7 @@ class GameServer:
     def handle_set_command(self, args: str):
         parts = args.split()
         if len(parts) < 2:
-            self.log("Usage: set <targets|respawn|duration|mode> <value>")
+            self.log("Usage: set <targets|respawn|duration|mode|gamemode> <value>")
             return
 
         key = parts[0].lower()
@@ -1014,8 +1021,19 @@ class GameServer:
                     target.variant = self.target_mode
                 self.state_revision += 1
                 msg = f"[SERVER] target_mode set to {self.target_mode}"
+            elif key == "gamemode":
+                raw_gamemode = value.lower()
+                if raw_gamemode in ("pvp", "player", "players"):
+                    self.game_mode = "pvp"
+                elif raw_gamemode in ("pve", "targets", "target"):
+                    self.game_mode = "pve"
+                else:
+                    self.log("Invalid gamemode. Use: pvp or pve")
+                    return
+                self._create_targets()
+                msg = f"[SERVER] game_mode set to {self.game_mode}"
             else:
-                self.log("Unknown set key. Use: targets, respawn, duration, mode")
+                self.log("Unknown set key. Use: targets, respawn, duration, mode, gamemode")
                 return
 
             chat_msg = Protocol.create_chat_message(

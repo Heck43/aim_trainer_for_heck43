@@ -8,7 +8,7 @@ import time
 
 from imgui_bundle import hello_imgui, imgui
 
-from shader_shared import SHADER_CONTROL_PORT, make_default_shader_state, sanitize_shader_state
+from shaders.shader_shared import SHADER_CONTROL_PORT, make_default_shader_state, sanitize_shader_state
 
 
 class ShaderPanelApp:

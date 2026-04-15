@@ -97,28 +97,6 @@ class HitboxCalculator:
 
             # ЛЕВАЯ РУКА
             arm_z_top = base_z + height * HitboxCalculator.ARM_ZONE_TOP
-            arm_z_bottom = base_z + height * HitboxCalculator.ARM_ZONE_BOTTOM
-            arm_z_center = (arm_z_top + arm_z_bottom) / 2.0
-            arm_radius = width * 0.12  # Уменьшили с 0.15 до 0.12
-
-            arm_offset_z = arm_z_center - eye_height
-            arm_offset_x = -width * 0.45  # Левая рука слева от центра
-
-            hitboxes["target_left_arm"] = (
-                center_x + arm_offset_x,
-                center_y,
-                arm_offset_z,
-                arm_radius
-            )
-
-            # ПРАВАЯ РУКА
-            hitboxes["target_right_arm"] = (
-                center_x - arm_offset_x,  # Правая рука справа
-                center_y,
-                arm_offset_z,
-                arm_radius
-            )
-
             # НОГИ
             leg_z_top = base_z + height * HitboxCalculator.LEG_ZONE_TOP
             leg_z_bottom = base_z + height * HitboxCalculator.LEG_ZONE_BOTTOM
@@ -153,8 +131,6 @@ class HitboxCalculator:
         return {
             "target_head": (0.0, 0.0, 0.00, 0.32),
             "target_body": (0.0, 0.0, -0.70, 0.50),
-            "target_left_arm": (-0.55, 0.0, -0.70, 0.26),
-            "target_right_arm": (0.55, 0.0, -0.70, 0.26),
             "target_legs": (0.0, 0.0, -1.45, 0.42),
         }
 
@@ -173,8 +149,7 @@ class HitboxCalculator:
         if not isinstance(hitboxes, dict):
             return False
 
-        required_parts = ["target_head", "target_body", "target_left_arm",
-                         "target_right_arm", "target_legs"]
+        required_parts = ["target_head", "target_body", "target_legs"]
 
         for part in required_parts:
             if part not in hitboxes:

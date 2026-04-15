@@ -12,7 +12,7 @@ import time
 
 from panda3d.core import Camera, CardMaker, Filename, FrameBufferProperties, GraphicsOutput, GraphicsPipe, NodePath, Shader, Texture, Vec2, Vec4, WindowProperties
 
-from shader_shared import (
+from shaders.shader_shared import (
     SHADER_CONTROL_PORT,
     TAB_LAYOUT,
     build_panel_registry,
