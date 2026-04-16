@@ -8,6 +8,7 @@ class AudioManager:
         self.game = game
         self.music = None
         self.current_music_path = None
+        self.weapon_sounds = {}
 
     def setup_audio(self):
         """Настраивает и запускает фоновую музыку"""
@@ -15,6 +16,17 @@ class AudioManager:
 
         if audio_settings['music_enabled']:
             self.play_music(audio_settings['current_track'], audio_settings['music_volume'])
+
+    def preload_weapon_sounds(self):
+        """Предзагружает звуки оружия для оптимизации"""
+        self.weapon_sounds = {}
+        for weapon_name, weapon_data in self.game.weapons.items():
+            sound_path = weapon_data.get("sound")
+            if sound_path:
+                try:
+                    self.weapon_sounds[weapon_name] = self.game.loader.loadSfx(sound_path)
+                except Exception as e:
+                    print(f"Ошибка загрузки звука {weapon_name}: {e}")
 
     def play_music(self, track_name, volume=0.5):
         """Воспроизводит фоновую музыку с указанным объемом"""

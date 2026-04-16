@@ -1,5 +1,6 @@
 from panda3d.core import NodePath, Point3, Vec3
 from direct.interval.IntervalGlobal import Sequence, Parallel, Wait, LerpPosInterval, LerpHprInterval
+from managers.weapons import Rifle, Pistol, Sniper, DualRevolvers
 
 
 class WeaponManagerNew:
@@ -114,6 +115,14 @@ class WeaponManagerNew:
         self.default_weapon_pos = {}
         self.ads_weapon_pos = {}
         self.ads_fov = {}
+
+        # Weapon instances for polymorphism
+        self.weapon_instances = {
+            "rifle": Rifle(game, self.weapons["rifle"]),
+            "pistol": Pistol(game, self.weapons["pistol"]),
+            "sniper": Sniper(game, self.weapons["sniper"]),
+            "dual_revolvers": DualRevolvers(game, self.weapons["dual_revolvers"]),
+        }
 
     def setup_weapon(self):
         """Создает модели оружия"""
@@ -517,3 +526,7 @@ class WeaponManagerNew:
         self.game.mouse_sensitivity = sensitivity
 
         return task.cont
+
+    def get_current_weapon_instance(self):
+        """Возвращает экземпляр текущего оружия"""
+        return self.weapon_instances[self.current_weapon]
