@@ -1,100 +1,103 @@
 """
 UI для лобби мультиплеера
+минималистичный стиль~~
 """
 from direct.gui.DirectGui import (
-    DirectFrame, DirectButton, DirectLabel, DirectEntry, 
+    DirectFrame, DirectButton, DirectLabel, DirectEntry,
     DGG, DirectScrolledList
 )
 from direct.gui.OnscreenText import OnscreenText
 from panda3d.core import TextNode, WindowProperties
 from direct.interval.IntervalGlobal import Sequence, Parallel, LerpColorScaleInterval, Func
 
+# минималистичные цвета
+DARK_BG = (0.11, 0.11, 0.12, 0.9)
+DARKER_BG = (0.17, 0.17, 0.18, 0.98)
+TEXT_PRIMARY = (0.90, 0.90, 0.91, 1.0)
+TEXT_SECONDARY = (0.68, 0.68, 0.70, 1.0)
+BORDER_LIGHT = (0.3, 0.3, 0.3, 0.5)
+BUTTON_NORMAL = (0.2, 0.2, 0.21, 0.9)
+BUTTON_PRIMARY = (1.0, 0.58, 0.0, 0.9)
+ACCENT_GREEN = (0.20, 0.78, 0.35, 1.0)
+
 class LobbyMenu:
-    """Меню лобби для мультиплеера"""
-    
+    """меню лобби для мультиплеера~~"""
+
     def __init__(self, game):
         self.game = game
         self.visible = False
         self.on_connect_callback = None
         self.on_back_callback = None
-        
+
         self.create_menu()
-    
+
     def create_menu(self):
-        """Создает UI лобби"""
-        # Затемненный фон
+        """создаёт UI лобби~~"""
+        # затемнённый фон
         self.dark_bg = DirectFrame(
-            frameColor=(0.05, 0.05, 0.05, 0.9),
+            frameColor=DARK_BG,
             frameSize=(-2, 2, -2, 2),
             relief=DGG.FLAT,
             parent=self.game.render2d
         )
         self.dark_bg.hide()
-        
-        # Основной фрейм
+
+        # основной фрейм
         self.frame = DirectFrame(
-            frameColor=(0.08, 0.08, 0.12, 0.98),
+            frameColor=DARKER_BG,
             frameSize=(-0.7, 0.7, -0.55, 0.55),
             relief=DGG.FLAT,
             pos=(0, 0, 0)
         )
         self.frame.hide()
-        
-        # Декоративные линии
-        DirectFrame(
-            frameColor=(0.3, 0.5, 1, 0.8),
-            frameSize=(-0.65, 0.65, -0.002, 0.002),
-            relief=DGG.FLAT,
-            pos=(0, 0, 0.53),
-            parent=self.frame
-        )
-        DirectFrame(
-            frameColor=(0.3, 0.5, 1, 0.8),
-            frameSize=(-0.65, 0.65, -0.002, 0.002),
-            relief=DGG.FLAT,
-            pos=(0, 0, -0.53),
-            parent=self.frame
-        )
-        
-        # Заголовок
+
+        # заголовок
         self.title = DirectLabel(
             text="MULTIPLAYER",
-            scale=0.1,
+            scale=0.09,
             pos=(0, 0, 0.42),
             parent=self.frame,
-            text_fg=(0.9, 0.95, 1, 1),
+            text_fg=TEXT_PRIMARY,
             text_align=TextNode.ACenter,
-            text_shadow=(0.2, 0.4, 0.8, 0.8),
-            text_shadowOffset=(0.003, -0.003),
-            frameColor=(0, 0, 0, 0)
+            frameColor=(0, 0, 0, 0),
+            relief=None
         )
-        
-        # Стиль для labels
+
+        # линия под заголовком
+        DirectFrame(
+            frameColor=BORDER_LIGHT,
+            frameSize=(-0.4, 0.4, -0.001, 0.001),
+            relief=DGG.FLAT,
+            pos=(0, 0, 0.35),
+            parent=self.frame
+        )
+
+        # стиль для labels
         label_style = {
             'frameColor': (0, 0, 0, 0),
-            'text_fg': (0.9, 0.9, 0.9, 1),
+            'text_fg': TEXT_PRIMARY,
             'text_scale': 0.045,
             'text_align': TextNode.ALeft
         }
-        
-        # Стиль для кнопок
+
+        # стиль для кнопок
         button_style = {
             'relief': DGG.FLAT,
             'borderWidth': (0, 0),
             'frameSize': (-0.25, 0.25, -0.04, 0.04),
             'text_scale': 0.045,
-            'text_fg': (0.95, 0.95, 0.95, 1),
+            'text_fg': TEXT_PRIMARY,
             'pressEffect': 0
         }
-        
-        # Поле имени игрока
+
+        # поле имени игрока
         DirectLabel(
             text="Your Name:",
             pos=(-0.55, 0, 0.25),
             parent=self.frame,
             **label_style
         )
-        
+
         self.name_entry = DirectEntry(
             text="",
             scale=0.05,
@@ -145,23 +148,23 @@ class LobbyMenu:
             numLines=1,
             focus=0,
             parent=self.frame,
-            frameColor=(0.15, 0.15, 0.2, 0.9),
-            text_fg=(1, 1, 1, 1),
+            frameColor=BUTTON_NORMAL,
+            text_fg=TEXT_PRIMARY,
             initialText="7777"
         )
 
-        # Статус подключения
+        # статус подключения
         self.status_label = DirectLabel(
             text="Not connected",
             pos=(0, 0, -0.15),
             parent=self.frame,
             frameColor=(0, 0, 0, 0),
-            text_fg=(0.7, 0.7, 0.7, 1),
+            text_fg=TEXT_SECONDARY,
             text_scale=0.04,
             text_align=TextNode.ACenter
         )
-        
-        # Список игроков
+
+        # список игроков
         DirectLabel(
             text="Players in lobby:",
             pos=(-0.55, 0, -0.25),
@@ -169,15 +172,15 @@ class LobbyMenu:
             **label_style
         )
 
-        # Фрейм для списка игроков
+        # фрейм для списка игроков
         self.players_frame = DirectFrame(
-            frameColor=(0.1, 0.1, 0.15, 0.9),
+            frameColor=(0.15, 0.15, 0.16, 0.9),
             frameSize=(-0.5, 0.5, -0.15, 0.08),
             relief=DGG.FLAT,
             pos=(0, 0, -0.38),
             parent=self.frame
         )
-        
+
         self.player_labels = []
         for i in range(8):
             label = DirectLabel(
@@ -185,57 +188,57 @@ class LobbyMenu:
                 pos=(-0.45 + (i % 4) * 0.23, 0, 0.02 - (i // 4) * 0.08),
                 parent=self.players_frame,
                 frameColor=(0, 0, 0, 0),
-                text_fg=(0.8, 0.8, 0.8, 1),
+                text_fg=TEXT_SECONDARY,
                 text_scale=0.035,
                 text_align=TextNode.ALeft
             )
             self.player_labels.append(label)
-        
-        # Кнопка Connect
+
+        # кнопка Connect
         self.connect_button = DirectButton(
             text="CONNECT",
             command=self.on_connect,
             pos=(-0.45, 0, -0.48),
             parent=self.frame,
-            frameColor=(0.2, 0.5, 0.3, 0.9),
+            frameColor=ACCENT_GREEN,
             **button_style
         )
         self.connect_button.bind(DGG.ENTER, self.button_hover_start, [self.connect_button])
         self.connect_button.bind(DGG.EXIT, self.button_hover_end, [self.connect_button])
-        
-        # Кнопка Start Game (скрыта по умолчанию, показывается когда подключен)
+
+        # кнопка Start Game (скрыта по умолчанию)
         self.start_game_button = DirectButton(
             text="START GAME",
             command=self.on_start_game,
             pos=(0, 0, -0.48),
             parent=self.frame,
-            frameColor=(0.2, 0.4, 0.9, 0.9),
+            frameColor=BUTTON_PRIMARY,
             **button_style
         )
         self.start_game_button.bind(DGG.ENTER, self.button_hover_start, [self.start_game_button])
         self.start_game_button.bind(DGG.EXIT, self.button_hover_end, [self.start_game_button])
         self.start_game_button.hide()
-        
-        # Кнопка Disconnect (скрыта по умолчанию)
+
+        # кнопка Disconnect (скрыта по умолчанию)
         self.disconnect_button = DirectButton(
             text="DISCONNECT",
             command=self.on_disconnect,
             pos=(-0.45, 0, -0.48),
             parent=self.frame,
-            frameColor=(0.5, 0.2, 0.2, 0.9),
+            frameColor=(1.0, 0.23, 0.19, 0.9),  # красная
             **button_style
         )
         self.disconnect_button.bind(DGG.ENTER, self.button_hover_start, [self.disconnect_button])
         self.disconnect_button.bind(DGG.EXIT, self.button_hover_end, [self.disconnect_button])
         self.disconnect_button.hide()
-        
-        # Кнопка Back
+
+        # кнопка Back
         self.back_button = DirectButton(
             text="BACK",
             command=self.on_back,
             pos=(0.45, 0, -0.48),
             parent=self.frame,
-            frameColor=(0.15, 0.15, 0.2, 0.9),
+            frameColor=BUTTON_NORMAL,
             **button_style
         )
         self.back_button.bind(DGG.ENTER, self.button_hover_start, [self.back_button])

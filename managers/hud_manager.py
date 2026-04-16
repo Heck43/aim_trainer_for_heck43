@@ -2,18 +2,25 @@ import time
 from direct.gui.OnscreenText import OnscreenText
 from panda3d.core import TextNode, CardMaker, TransparencyAttrib
 
+# минималистичные цвета для HUD
+TEXT_PRIMARY = (0.90, 0.90, 0.91, 1.0)
+TEXT_SECONDARY = (0.68, 0.68, 0.70, 1.0)
+ACCENT_ORANGE = (1.0, 0.58, 0.0, 1.0)
+ACCENT_GREEN = (0.20, 0.78, 0.35, 1.0)
+ACCENT_RED = (1.0, 0.23, 0.19, 1.0)
+
 
 class HudManager:
-    """Управляет всеми HUD элементами игры"""
+    """управляет всеми HUD элементами игры~~"""
 
     def __init__(self, game):
         self.game = game
 
-        # Score and timer
+        # счёт и таймер
         self.score_text = OnscreenText(
             text="Score: 0",
             pos=(-1.3, 0.9),
-            fg=(1, 1, 1, 1),
+            fg=TEXT_PRIMARY,
             align=TextNode.ALeft,
             scale=0.07,
             mayChange=True
@@ -23,29 +30,29 @@ class HudManager:
         self.timer_text = OnscreenText(
             text="Time: 0.0",
             pos=(-0.0, -0.9),
-            fg=(1, 1, 1, 1),
+            fg=TEXT_PRIMARY,
             align=TextNode.ACenter,
             scale=0.07,
-            shadow=(0, 0, 0, 1)
+            shadow=(0, 0, 0, 0.5)
         )
         self.timer_text.hide()
 
-        # Multiplayer scoreboard
+        # таблица мультиплеера
         self.scoreboard_text = OnscreenText(
             text="",
             pos=(1.25, 0.86),
-            fg=(1, 1, 1, 1),
+            fg=TEXT_PRIMARY,
             align=TextNode.ARight,
             scale=0.05,
             mayChange=True,
         )
         self.scoreboard_text.hide()
 
-        # Multiplayer HP and K/D
+        # HP и K/D для мультиплеера
         self.hp_text = OnscreenText(
             text="HP: 100/100",
             pos=(-1.3, 0.82),
-            fg=(0.5, 1.0, 0.5, 1),
+            fg=ACCENT_GREEN,
             align=TextNode.ALeft,
             scale=0.06,
             mayChange=True,
@@ -55,49 +62,49 @@ class HudManager:
         self.kd_text = OnscreenText(
             text="K/D: 0/0",
             pos=(-1.3, 0.74),
-            fg=(1, 1, 1, 1),
+            fg=TEXT_SECONDARY,
             align=TextNode.ALeft,
             scale=0.055,
             mayChange=True,
         )
         self.kd_text.hide()
 
-        # Game mode indicator
+        # индикатор режима игры
         self.mode_text = OnscreenText(
             text="",
             pos=(0, 0.9),
-            fg=(1, 0.3, 0.3, 1),
+            fg=ACCENT_ORANGE,
             align=TextNode.ACenter,
             scale=0.06,
             mayChange=True,
-            shadow=(0, 0, 0, 1)
+            shadow=(0, 0, 0, 0.5)
         )
         self.mode_text.hide()
 
-        # Death overlay
+        # оверлей смерти
         death_overlay_cm = CardMaker("death_overlay")
         death_overlay_cm.setFrame(-1, 1, -1, 1)
         self.death_overlay = self.game.render2d.attachNewNode(death_overlay_cm.generate())
         self.death_overlay.setTransparency(TransparencyAttrib.MAlpha)
-        self.death_overlay.setColor(0.2, 0.0, 0.0, 0.45)
+        self.death_overlay.setColor(0.15, 0.0, 0.0, 0.5)
         self.death_overlay.hide()
 
         self.death_text = OnscreenText(
             text="",
             pos=(0, 0.12),
-            fg=(1.0, 0.9, 0.9, 1.0),
+            fg=TEXT_PRIMARY,
             align=TextNode.ACenter,
             scale=0.09,
             mayChange=True,
         )
         self.death_text.hide()
 
-        # Hurt flash
+        # вспышка урона
         hurt_flash_cm = CardMaker("hurt_flash")
         hurt_flash_cm.setFrame(-1, 1, -1, 1)
         self.hurt_flash = self.game.render2d.attachNewNode(hurt_flash_cm.generate())
         self.hurt_flash.setTransparency(TransparencyAttrib.MAlpha)
-        self.hurt_flash.setColor(0.85, 0.05, 0.05, 0.0)
+        self.hurt_flash.setColor(0.8, 0.05, 0.05, 0.0)
         self.hurt_flash.hide()
 
         self.hurt_flash_alpha = 0.0

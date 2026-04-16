@@ -23,7 +23,7 @@ class ControlsTab(BaseTab):
         self.elements.append(sensitivity_label)
         
         self.sensitivity_slider = create_slider(
-            range=(0.1, 150.0),
+            range=(0.1, 300.0),  # увеличил максимум до 300
             value=self.current_sensitivity,
             pos=(0.25, 0, 0.3),
             command=self.update_sensitivity,

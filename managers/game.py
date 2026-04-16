@@ -1177,7 +1177,7 @@ class Game(ShowBase):
 
         if self.is_shader_debug_open:
             self.toggle_shader_debug_panel()
-            
+
         if hasattr(self, 'score_text'):
             self.hud_manager.score_text.hide()
         if hasattr(self, 'timer_text'):
@@ -1196,6 +1196,20 @@ class Game(ShowBase):
             self.hud_manager.death_text.hide()
         if hasattr(self, 'hurt_flash'):
             self.hud_manager.hurt_flash.hide()
+        if hasattr(self, 'fps_text'):
+            self.fps_text.hide()
+        if hasattr(self, 'pos_text'):
+            self.pos_text.hide()
+        if hasattr(self, 'speed_text'):
+            self.speed_text.hide()
+        if hasattr(self, 'crosshair'):
+            self.crosshair.hide()
+        if hasattr(self, 'killfeed_manager'):
+            for msg_data in self.killfeed_manager.messages:
+                if 'message' in msg_data:
+                    msg_data['message'].hide()
+                if 'frame_root' in msg_data:
+                    msg_data['frame_root'].hide()
         self.chat_manager.is_chat_active = False
         self.show_scoreboard = False
             

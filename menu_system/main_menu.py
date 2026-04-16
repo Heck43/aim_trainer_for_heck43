@@ -1,5 +1,6 @@
 """
 Главное меню игры с модульной системой настроек
+минималистичный дизайн~~
 """
 from direct.gui.DirectGui import DirectButton, DirectFrame, DirectLabel, DGG
 from panda3d.core import TextNode, WindowProperties, Vec3, Point3, NodePath
@@ -12,6 +13,16 @@ from .weapon_tab import WeaponTab
 from .game_tab import GameTab
 from .audio_tab import AudioTab
 from .ui_helpers import get_resolution_ui_scale
+from .gradient_bg import GradientBackground
+
+# цвета
+DARK_BG = (0.11, 0.11, 0.12, 0.95)
+DARKER_BG = (0.17, 0.17, 0.18, 0.98)
+TEXT_PRIMARY = (0.90, 0.90, 0.91, 1.0)
+TEXT_SECONDARY = (0.68, 0.68, 0.70, 1.0)
+BORDER_LIGHT = (0.3, 0.3, 0.3, 0.5)
+BUTTON_NORMAL = (0.2, 0.2, 0.21, 0.9)
+BUTTON_PRIMARY = (1.0, 0.58, 0.0, 0.9)
 
 class MainMenu:
     def __init__(self, game):
@@ -29,12 +40,12 @@ class MainMenu:
         
         self.current_resolution = self.game.settings.get('resolution', '1280x720')
         self.resolutions = self.get_supported_resolutions()
-        
-        self.create_dynamic_background()
+
+        self.gradient_bg = GradientBackground(self.game)
         self.create_menu()
         self.create_settings_menu()
         self.update_layout()
-        
+
         self.initial_hide()
     
     def get_supported_resolutions(self):
@@ -116,190 +127,130 @@ class MainMenu:
             self.game.pause_menu.update_layout()
         return task.done
     
-    def create_dynamic_background(self):
-        """Создает динамический 3D фон"""
-        self.bg_root = self.game.render.attachNewNode("menu_background")
-        self.bg_root.setPos(0, 50, 0)
-        
-        for i in range(8):
-            obj = self.game.safe_load_model("models/box")
-            obj.reparentTo(self.bg_root)
-            
-            x = random.uniform(-20, 20)
-            y = random.uniform(-10, 30)
-            z = random.uniform(-10, 10)
-            obj.setPos(x, y, z)
-            
-            scale = random.uniform(0.5, 2.0)
-            obj.setScale(scale)
-            
-            r = random.uniform(0.1, 0.3)
-            g = random.uniform(0.2, 0.4)
-            b = random.uniform(0.3, 0.6)
-            obj.setColor(r, g, b, 0.6)
-            
-            obj.setTransparency(1)
-            
-            duration = random.uniform(15, 30)
-            rotation_hpr = Vec3(
-                random.uniform(0, 360),
-                random.uniform(0, 360),
-                random.uniform(0, 360)
-            )
-            
-            rotation_interval = obj.hprInterval(
-                duration,
-                obj.getHpr() + rotation_hpr,
-                blendType='noBlend'
-            )
-            
-            move_duration = random.uniform(20, 40)
-            start_pos = obj.getPos()
-            end_pos = Point3(
-                start_pos.x + random.uniform(-5, 5),
-                start_pos.y + random.uniform(-5, 5),
-                start_pos.z + random.uniform(-3, 3)
-            )
-            
-            move_interval = Sequence(
-                obj.posInterval(move_duration, end_pos, start_pos, blendType='easeInOut'),
-                obj.posInterval(move_duration, start_pos, end_pos, blendType='easeInOut')
-            )
-            
-            rotation_interval.loop()
-            move_interval.loop()
-            
-            self.background_objects.append(obj)
         
     def create_menu(self):
-        """Создает главное меню"""
+        """создаёт главное меню в минималистичном стиле~~"""
+        print("DEBUG: создаём меню...")
+
         self.dark_bg = DirectFrame(
-            frameColor=(0.05, 0.05, 0.05, 0.9),
+            frameColor=DARK_BG,
             frameSize=(-2, 2, -2, 2),
             relief=DGG.FLAT,
             parent=self.game.render2d
         )
-        
+        print("DEBUG: dark_bg создан")
+
         self.frame = DirectFrame(
-            frameColor=(0.08, 0.08, 0.12, 0.98),
-            frameSize=(-0.6, 0.6, -0.5, 0.5),
+            frameColor=DARKER_BG,
+            frameSize=(-0.5, 0.5, -0.55, 0.55),
             relief=DGG.FLAT,
-            borderWidth=(0.005, 0.005),
+            borderWidth=(0, 0),
             pos=(0, 0, 0),
             parent=self.ui_root
         )
-        
-        self.top_line = DirectFrame(
-            frameColor=(0.3, 0.5, 1, 0.8),
-            frameSize=(-0.55, 0.55, -0.002, 0.002),
-            relief=DGG.FLAT,
-            pos=(0, 0, 0.48),
-            parent=self.frame
-        )
-        
-        self.bottom_line = DirectFrame(
-            frameColor=(0.3, 0.5, 1, 0.8),
-            frameSize=(-0.55, 0.55, -0.002, 0.002),
-            relief=DGG.FLAT,
-            pos=(0, 0, -0.48),
-            parent=self.frame
-        )
-        
+        print("DEBUG: frame создан")
+
+        # заголовок
         self.title = DirectLabel(
             text="AIM TRAINER",
-            scale=0.12,
-            pos=(0, 0, 0.35),
+            scale=0.1,
+            pos=(0, 0, 0.4),
             parent=self.frame,
-            text_fg=(0.9, 0.95, 1, 1),
+            text_fg=TEXT_PRIMARY,
             text_align=TextNode.ACenter,
-            text_shadow=(0.2, 0.4, 0.8, 0.8),
-            text_shadowOffset=(0.003, -0.003),
-            frameColor=(0, 0, 0, 0)
+            frameColor=(0, 0, 0, 0),
+            relief=None
         )
-        
-        self.subtitle = DirectLabel(
-            text="TRAIN YOUR PRECISION",
-            scale=0.04,
-            pos=(0, 0, 0.24),
-            parent=self.frame,
-            text_fg=(0.5, 0.6, 0.8, 1),
-            text_align=TextNode.ACenter,
-            frameColor=(0, 0, 0, 0)
+        print("DEBUG: title создан")
+
+        # тонкая линия под заголовком
+        self.title_line = DirectFrame(
+            frameColor=BORDER_LIGHT,
+            frameSize=(-0.3, 0.3, -0.001, 0.001),
+            relief=DGG.FLAT,
+            pos=(0, 0, 0.32),
+            parent=self.frame
         )
-        
-        self.title_animation = Sequence(
-            LerpScaleInterval(self.title, 2.0, 0.13, blendType='easeInOut'),
-            LerpScaleInterval(self.title, 2.0, 0.12, blendType='easeInOut'),
-        )
-        self.title_animation.loop()
-        
+        print("DEBUG: title_line создан")
+
+        # стиль кнопок
         button_style = {
             'relief': DGG.FLAT,
             'borderWidth': (0, 0),
-            'frameSize': (-0.3, 0.3, -0.045, 0.045),
-            'text_scale': 0.05,
-            'text_fg': (0.95, 0.95, 0.95, 1),
+            'frameSize': (-0.35, 0.35, -0.05, 0.05),
+            'text_scale': 0.045,
+            'text_fg': TEXT_PRIMARY,
             'pressEffect': 0
         }
-        
+
+        # кнопки обычным способом
         self.play_button = DirectButton(
             text="PLAY",
             command=self.start_game,
-            pos=(0, 0, 0.12),
+            pos=(0, 0, 0.15),
             parent=self.frame,
-            frameColor=(0.2, 0.4, 0.9, 0.9),
+            frameColor=(1.0, 0.58, 0.0, 0.9),  # оранжевая
             **button_style
         )
         self.menu_buttons.append(self.play_button)
-        
+        print("DEBUG: play_button создан")
+
         self.multiplayer_button = DirectButton(
             text="MULTIPLAYER",
             command=self.show_multiplayer,
             pos=(0, 0, 0.0),
             parent=self.frame,
-            frameColor=(0.3, 0.5, 0.2, 0.9),
+            frameColor=(0.2, 0.2, 0.21, 0.9),  # серая
             **button_style
         )
         self.menu_buttons.append(self.multiplayer_button)
-        
+        print("DEBUG: multiplayer_button создан")
+
         self.settings_button = DirectButton(
             text="SETTINGS",
             command=self.toggle_settings,
-            pos=(0, 0, -0.12),
+            pos=(0, 0, -0.15),
             parent=self.frame,
-            frameColor=(0.15, 0.15, 0.2, 0.9),
+            frameColor=(0.2, 0.2, 0.21, 0.9),  # серая
             **button_style
         )
         self.menu_buttons.append(self.settings_button)
-        
+        print("DEBUG: settings_button создан")
+
         self.exit_button = DirectButton(
             text="EXIT",
             command=self.exit_game,
-            pos=(0, 0, -0.24),
+            pos=(0, 0, -0.30),
             parent=self.frame,
-            frameColor=(0.15, 0.15, 0.2, 0.9),
+            frameColor=(1.0, 0.23, 0.19, 0.9),  # красная
             **button_style
         )
         self.menu_buttons.append(self.exit_button)
-        
+        print("DEBUG: exit_button создан")
+
+        # привязываем hover эффекты
         for button in self.menu_buttons:
             button.bind(DGG.ENTER, self.button_hover_start, [button])
             button.bind(DGG.EXIT, self.button_hover_end, [button])
-        
+
+        # версия
         self.version_label = DirectLabel(
-            text="v1.0",
-            scale=0.04,
-            pos=(0.5, 0, -0.43),
+            text="v2.3.2",
+            scale=0.035,
+            pos=(0.42, 0, -0.48),
             parent=self.frame,
-            text_fg=(0.4, 0.4, 0.5, 1),
+            text_fg=TEXT_SECONDARY,
             text_align=TextNode.ARight,
-            frameColor=(0, 0, 0, 0)
+            frameColor=(0, 0, 0, 0),
+            relief=None
         )
+        print("DEBUG: version_label создан")
+        print(f"DEBUG: всего кнопок создано: {len(self.menu_buttons)}")
     
     def create_settings_menu(self):
-        """Создает меню настроек с модульными вкладками"""
+        """создаёт меню настроек с модульными вкладками~~"""
         self.settings_frame = DirectFrame(
-            frameColor=(0.08, 0.08, 0.12, 0.95),
+            frameColor=DARKER_BG,
             frameSize=(-0.9, 0.9, -0.65, 0.65),
             relief=DGG.FLAT,
             borderWidth=(0, 0),
@@ -307,27 +258,34 @@ class MainMenu:
             parent=self.ui_root
         )
         self.settings_frame.hide()
-        
+
         self.settings_title = DirectLabel(
             text="SETTINGS",
             scale=0.08,
             pos=(0, 0, 0.55),
             parent=self.settings_frame,
-            text_fg=(0.9, 0.95, 1, 1),
+            text_fg=TEXT_PRIMARY,
             text_align=TextNode.ACenter,
-            text_shadow=(0.2, 0.4, 0.8, 0.8),
-            text_shadowOffset=(0.003, -0.003),
             frameColor=(0, 0, 0, 0),
             relief=None
         )
-        
+
+        # линия под заголовком
+        self.settings_title_line = DirectFrame(
+            frameColor=BORDER_LIGHT,
+            frameSize=(-0.3, 0.3, -0.001, 0.001),
+            relief=DGG.FLAT,
+            pos=(0, 0, 0.48),
+            parent=self.settings_frame
+        )
+
         self.categories_container = DirectFrame(
-            frameColor=(0.12, 0.14, 0.17, 0),
+            frameColor=(0, 0, 0, 0),
             frameSize=(-0.2, 0.2, -0.6, 0.6),
             pos=(-0.65, 0, 0.1),
             parent=self.settings_frame
         )
-        
+
         self.tabs = {
             'graphics': GraphicsTab(self.game, self.settings_frame, self.resolutions),
             'controls': ControlsTab(self.game, self.settings_frame),
@@ -335,11 +293,11 @@ class MainMenu:
             'game': GameTab(self.game, self.settings_frame),
             'audio': AudioTab(self.game, self.settings_frame),
         }
-        
+
         for key, tab in self.tabs.items():
             tab.hide()
         self.tabs['graphics'].show()
-        
+
         self.tab_buttons = []
         category_data = [
             ('Graphics', 'graphics'),
@@ -348,17 +306,17 @@ class MainMenu:
             ('Game', 'game'),
             ('Audio', 'audio'),
         ]
-        
+
         category_button_style = {
             'relief': DGG.FLAT,
             'borderWidth': (0, 0),
             'frameSize': (-0.18, 0.18, -0.045, 0.045),
             'text_scale': 0.045,
-            'text_fg': (0.95, 0.95, 0.95, 1),
-            'frameColor': (0.15, 0.15, 0.2, 0.9),
+            'text_fg': TEXT_PRIMARY,
+            'frameColor': (0.2, 0.2, 0.21, 0.9),
             'pressEffect': 0
         }
-        
+
         for i, (display_name, frame_key) in enumerate(category_data):
             button = DirectButton(
                 text=display_name,
@@ -369,27 +327,27 @@ class MainMenu:
                 **category_button_style
             )
             self.tab_buttons.append(button)
-        
+
         self.on_tab_changed('graphics')
-        
+
         self.back_button = DirectButton(
             text="Back",
             pos=(0, 0, -0.82),
             parent=self.settings_frame,
             command=self.toggle_settings,
-            frameColor=(0.2, 0.4, 0.9, 0.9),
+            frameColor=BUTTON_PRIMARY,
             relief=DGG.FLAT,
             borderWidth=(0, 0),
             frameSize=(-0.25, 0.25, -0.04, 0.04),
             text_scale=0.045,
-            text_fg=(0.9, 0.9, 0.9, 1),
+            text_fg=TEXT_PRIMARY,
             pressEffect=0
         )
         self.back_button.bind(DGG.ENTER, self.button_hover_start, [self.back_button])
         self.back_button.bind(DGG.EXIT, self.button_hover_end, [self.back_button])
     
     def on_tab_changed(self, tab_name):
-        """Обработчик смены вкладки"""
+        """обработчик смены вкладки~~"""
         category_data = [
             ('Graphics', 'graphics'),
             ('Controls', 'controls'),
@@ -397,45 +355,35 @@ class MainMenu:
             ('Game', 'game'),
             ('Audio', 'audio'),
         ]
-        
+
         for i, button in enumerate(self.tab_buttons):
             if i < len(category_data) and category_data[i][1] == tab_name:
-                button['frameColor'] = (0.2, 0.4, 0.9, 0.9)
+                button['frameColor'] = (1.0, 0.58, 0.0, 0.9)  # оранжевая для активной
             else:
-                button['frameColor'] = (0.15, 0.15, 0.2, 0.9)
-        
+                button['frameColor'] = (0.2, 0.2, 0.21, 0.9)  # серая для неактивной
+
         for tab in self.tabs.values():
             tab.hide()
-        
+
         if tab_name in self.tabs:
             self.tabs[tab_name].show()
     
     def button_hover_start(self, button, event):
-        """Эффект при наведении"""
+        """эффект при наведении (для старых кнопок в настройках)~~"""
         if self.hover_sound:
             self.hover_sound.play()
-        
+
         Parallel(
-            LerpColorScaleInterval(button, 0.2, (1.2, 1.2, 1.2, 1), blendType='easeOut'),
-            LerpScaleInterval(button, 0.2, 1.08, blendType='easeOut')
+            LerpColorScaleInterval(button, 0.15, (1.1, 1.1, 1.1, 1), blendType='easeOut'),
+            LerpScaleInterval(button, 0.15, 1.02, blendType='easeOut')
         ).start()
-        
-        if button == self.play_button:
-            button['frameColor'] = (0.3, 0.5, 1, 1)
-        else:
-            button['frameColor'] = (0.25, 0.3, 0.4, 1)
-    
+
     def button_hover_end(self, button, event):
-        """Эффект при отведении курсора"""
+        """эффект при отведении курсора (для старых кнопок в настройках)~~"""
         Parallel(
-            LerpColorScaleInterval(button, 0.2, (1, 1, 1, 1), blendType='easeIn'),
-            LerpScaleInterval(button, 0.2, 1.0, blendType='easeIn')
+            LerpColorScaleInterval(button, 0.15, (1, 1, 1, 1), blendType='easeIn'),
+            LerpScaleInterval(button, 0.15, 1.0, blendType='easeIn')
         ).start()
-        
-        if button == self.play_button:
-            button['frameColor'] = (0.2, 0.4, 0.9, 0.9)
-        else:
-            button['frameColor'] = (0.15, 0.15, 0.2, 0.9)
     
     def toggle_settings(self):
         """Переключает видимость настроек"""
@@ -472,34 +420,45 @@ class MainMenu:
             self.frame.hide()
     
     def show(self):
-        """Показать меню"""
+        """показать меню~~"""
         self.update_layout()
+        self.gradient_bg.show()
         self.dark_bg.show()
         self.frame.show()
-        
+
+        # показываем все кнопки явно
+        for button in self.menu_buttons:
+            button.show()
+        if hasattr(self, 'title'):
+            self.title.show()
+        if hasattr(self, 'title_line'):
+            self.title_line.show()
+        if hasattr(self, 'version_label'):
+            self.version_label.show()
+
         props = WindowProperties()
         props.setCursorHidden(False)
         self.game.win.requestProperties(props)
-        
+
         self.frame.setColorScale(1, 1, 1, 0)
         self.dark_bg.setColorScale(1, 1, 1, 0)
         Parallel(
-            LerpColorScaleInterval(self.frame, 0.4, (1, 1, 1, 1)),
-            LerpColorScaleInterval(self.dark_bg, 0.4, (1, 1, 1, 1))
+            LerpColorScaleInterval(self.frame, 0.3, (1, 1, 1, 1)),
+            LerpColorScaleInterval(self.dark_bg, 0.3, (1, 1, 1, 1))
         ).start()
-    
+
     def hide(self):
-        """Скрыть меню"""
+        """скрыть меню~~"""
         hide_sequence = Sequence(
             Parallel(
-                LerpColorScaleInterval(self.frame, 0.3, (1, 1, 1, 0)),
-                LerpColorScaleInterval(self.dark_bg, 0.3, (1, 1, 1, 0))
+                LerpColorScaleInterval(self.frame, 0.2, (1, 1, 1, 0)),
+                LerpColorScaleInterval(self.dark_bg, 0.2, (1, 1, 1, 0))
             ),
             Func(self.frame.hide),
-            Func(self.dark_bg.hide)
+            Func(self.dark_bg.hide),
+            Func(self.gradient_bg.hide)
         )
         hide_sequence.start()
-        self.title_animation.pause()
     
     def show_multiplayer(self):
         """Открыть меню мультиплеера"""
@@ -530,21 +489,16 @@ class MainMenu:
         self.game.userExit()
     
     def cleanup(self):
-        """Очистить ресурсы меню"""
+        """очистить ресурсы меню~~"""
         try:
             self.game.taskMgr.remove(self._layout_task_name)
         except Exception:
             pass
 
-        for obj in self.background_objects:
-            obj.removeNode()
-        self.background_objects.clear()
-        
-        if hasattr(self, 'bg_root'):
-            self.bg_root.removeNode()
-        
+        if hasattr(self, 'gradient_bg'):
+            self.gradient_bg.cleanup()
+
         if self.frame:
-            self.title_animation.pause()
             self.frame.destroy()
 
         for tab in self.tabs.values():

@@ -31,19 +31,19 @@ def get_resolution_ui_scale(game, base_width=1280, base_height=720, min_scale=0.
     return max(min_scale, min(max_scale, scale))
 
 def create_label(text, pos, parent, scale=0.045, align=TextNode.ALeft):
-    """Создает текстовую метку"""
+    """создаёт текстовую метку~~"""
     return DirectLabel(
         text=text,
         pos=pos,
         parent=parent,
         frameColor=(0, 0, 0, 0),
-        text_fg=(0.9, 0.9, 0.9, 1),
+        text_fg=(0.9, 0.9, 0.91, 1),
         text_scale=scale,
         text_align=align
     )
 
 def create_slider(range, value, pos, command, parent, scale=0.5):
-    """Создает слайдер"""
+    """создаёт слайдер в минималистичном стиле~~"""
     return DirectSlider(
         range=range,
         value=value,
@@ -51,31 +51,33 @@ def create_slider(range, value, pos, command, parent, scale=0.5):
         pos=pos,
         parent=parent,
         command=command,
-        frameColor=(0.18, 0.2, 0.25, 0.9),
+        frameColor=(0.2, 0.2, 0.21, 0.9),  # серый фон
         relief=DGG.FLAT,
         borderWidth=(0, 0),
-        thumb_frameColor=(0.4, 0.6, 1, 1),
+        thumb_frameColor=(1.0, 0.58, 0.0, 1),  # оранжевый ползунок
         thumb_relief=DGG.FLAT,
-        thumb_frameSize=(-0.015, 0.015, -0.015, 0.015),
+        thumb_frameSize=(-0.025, 0.025, -0.025, 0.025),  # больше ползунок
         scale=scale,
-        text_fg=(0.9, 0.9, 0.9, 1)
+        text_fg=(0.9, 0.9, 0.91, 1)
     )
 
 def create_checkbox(text, pos, command, parent, scale=0.05):
-    """Создает чекбокс"""
+    """создаёт чекбокс~~"""
     checkbox_style = {
-        'frameColor': (0.18, 0.2, 0.25, 0.9),
+        'frameColor': (0, 0, 0, 0),  # прозрачный фон
         'relief': DGG.FLAT,
         'borderWidth': (0, 0),
-        'text_fg': (0.9, 0.9, 0.9, 1),
+        'text_fg': (0.9, 0.9, 0.91, 1),
         'boxPlacement': 'right',
         'boxRelief': DGG.FLAT,
+        'boxImage': None,
+        'boxImageColor': (1.0, 0.58, 0.0, 1),  # оранжевая галочка
         'indicatorValue': 0,
         'scale': scale,
         'frameSize': (-1.5, 3.0, -0.4, 0.6),
         'text_scale': 0.8
     }
-    
+
     checkbox = DirectCheckButton(
         text=text,
         pos=pos,
@@ -85,10 +87,16 @@ def create_checkbox(text, pos, command, parent, scale=0.05):
     )
     checkbox['indicatorValue'] = 0
     checkbox['text_pos'] = (0.2, 0)
+
+    # устанавливаем цвета для бокса
+    checkbox['frameColor'] = (0, 0, 0, 0)
+    checkbox.indicator['frameColor'] = (0.2, 0.2, 0.21, 0.9)  # серый бокс
+    checkbox.indicator['relief'] = DGG.FLAT
+
     return checkbox
 
 def create_option_menu(parent, items, initial_item, pos_x, pos_y, command):
-    """Создает выпадающее меню с опциями"""
+    """создаёт выпадающее меню с опциями~~"""
     menu = DirectOptionMenu(
         parent=parent,
         text="",
@@ -97,13 +105,13 @@ def create_option_menu(parent, items, initial_item, pos_x, pos_y, command):
         pos=(pos_x, 0, pos_y),
         scale=0.045,
         command=command,
-        highlightColor=(0.5, 0.7, 1, 1),
-        frameColor=(0.18, 0.2, 0.25, 0.9),
-        popupMarker_frameColor=(0.4, 0.6, 1, 1),
+        highlightColor=(1.0, 0.65, 0.1, 1),  # оранжевый highlight
+        frameColor=(0.2, 0.2, 0.21, 0.9),
+        popupMarker_frameColor=(1.0, 0.58, 0.0, 1),  # оранжевая стрелка
         relief=DGG.FLAT,
-        text_fg=(0.9, 0.9, 0.9, 1),
+        text_fg=(0.9, 0.9, 0.91, 1),
         item_relief=DGG.FLAT,
-        item_frameColor=(0.18, 0.2, 0.25, 0.9),
-        item_text_fg=(0.9, 0.9, 0.9, 1)
+        item_frameColor=(0.2, 0.2, 0.21, 0.9),
+        item_text_fg=(0.9, 0.9, 0.91, 1)
     )
     return menu

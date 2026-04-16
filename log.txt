@@ -1,36 +1,123 @@
+C:\Users\heck43\Desktop\aim_trainer_for_heck43>python main.py
+Known pipe types:
+  wglGraphicsPipe
+(all display modules loaded.)
+ResourceManager initialized
+[ShaderDebug] Using in-game Dear ImGui backend
+Loading Loading map...
+Loading Loading fonts...
+Warning: Папка fonts не найдена
+Loading Loading sounds...
+OK: Загружен звук: sounds/pistol_shot.wav
+OK: Загружен звук: sounds/rifle_shot.wav
+OK: Загружен звук: sounds/sniper_shot.wav
+Loading Loading textures...
+[PlayerModel] Preloaded main MP model from C:\Users\heck43\Desktop\aim_trainer_for_heck43\model_textures\untitled.bam
+Loading Initializing game...
+Loading Preparing menu...
+Info: Создаем главное меню...
+DEBUG: создаём меню...
+DEBUG: dark_bg создан
+DEBUG: frame создан
+DEBUG: title создан
+DEBUG: title_line создан
+DEBUG: play_button создан
+DEBUG: multiplayer_button создан
+DEBUG: settings_button создан
+DEBUG: exit_button создан
+DEBUG: version_label создан
+DEBUG: всего кнопок создано: 4
+Warning: Ошибка создания меню: 'Unknown options "uncheckedImage, checkedImage" for DirectCheckButton'
+Warning: Меню не было создано в splash screen, создаем сейчас...
+DEBUG: создаём меню...
+DEBUG: dark_bg создан
+DEBUG: frame создан
+DEBUG: title создан
+DEBUG: title_line создан
+DEBUG: play_button создан
+DEBUG: multiplayer_button создан
+DEBUG: settings_button создан
+DEBUG: exit_button создан
+DEBUG: version_label создан
+DEBUG: всего кнопок создано: 4
+Exception occurred while processing Func-show_main_menu-9 of Sequence-16:
+Sequence-16:
+  0.000 Sequence-16 {
+  0.000   Wait dur 0.3
+  0.300   Parallel-15 {
+  0.300     LerpColorScaleInterval-21: color_scale from 1 1 1 1 to 1 1 1 0 dur 1
+  0.300     LerpColorScaleInterval-22: color_scale from 0.7 0.7 0.8 1 to 0.7 0.7 0.8 0 dur 1
+  0.300     LerpColorScaleInterval-23: color_scale from 0.8 0.8 0.9 1 to 0.8 0.8 0.9 0 dur 1
+  0.300     LerpColorScaleInterval-24: color_scale from 0.15 0.15 0.25 0.3 to 0.15 0.15 0.25 0 dur 1
+  0.300     LerpColorScaleInterval-25: color_scale from 0.85 0.85 0.95 1 to 0.85 0.85 0.95 0 dur 1
+  1.300   }
+  1.300   *Func-cleanup-8
+  1.300   *Func-show_main_menu-9
+  1.300 }
+
 Traceback (most recent call last):
-  File "C:\Python314\Lib\site-packages\direct\showbase\EventManager.py", line 49, in eventLoopTask
-    self.doEvents()
-    ~~~~~~~~~~~~~^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\EventManager.py", line 43, in doEvents
-    processFunc(dequeueFunc())
-    ~~~~~~~~~~~^^^^^^^^^^^^^^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\EventManager.py", line 99, in processEvent
-    messenger.send(eventName, paramList)
-    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 337, in send
-    self.__dispatch(acceptorDict, event, sentArgs, foundWatch)
-    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 422, in __dispatch
-    result = method (*(extraArgs + sentArgs))
-  File "C:\Python314\Lib\site-packages\direct\gui\DirectSlider.py", line 135, in commandFunc
-    self['command'](*self['extraArgs'])
-    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\weapon_tab.py", line 86, in update_x_position
-    messenger.send('update_weapon_position')
-    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 337, in send
-    self.__dispatch(acceptorDict, event, sentArgs, foundWatch)
-    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 422, in __dispatch
-    result = method (*(extraArgs + sentArgs))
-  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\main.py", line 884, in update_weapon_position
-    if not hasattr(self, 'weapon') or self.weapon.isEmpty():
-                                      ^^^^^^^^^^^^^^^^^^^
-AttributeError: 'NoneType' object has no attribute 'isEmpty'
-:task(error): Exception occurred in PythonTask eventManager
+  File "C:\Python314\Lib\site-packages\direct\showbase\ShowBase.py", line 2102, in __ivalLoop
+    IntervalManager.ivalMgr.step()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\interval\IntervalManager.py", line 95, in step
+    self.__doPythonCallbacks()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\interval\IntervalManager.py", line 118, in __doPythonCallbacks
+    ival.privPostEvent()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\interval\MetaInterval.py", line 526, in privPostEvent
+    self.__doPythonCallbacks()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\interval\MetaInterval.py", line 502, in __doPythonCallbacks
+    ival.privDoEvent(t, eventType)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\interval\Interval.py", line 210, in privDoEvent
+    self.privInstant()
+    ~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\interval\FunctionInterval.py", line 96, in privInstant
+    self.function(*self.extraArgs, **self.kw)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\splash_screen.py", line 454, in show_main_menu
+    self.game.show_main_menu()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\managers\game.py", line 1835, in show_main_menu
+    self.menu = MainMenu(self)
+                ~~~~~~~~^^^^^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\main_menu.py", line 46, in __init__
+    self.create_settings_menu()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\main_menu.py", line 290, in create_settings_menu
+    'graphics': GraphicsTab(self.game, self.settings_frame, self.resolutions),
+                ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\graphics_tab.py", line 16, in __init__
+    self.create_ui()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\graphics_tab.py", line 62, in create_ui
+    self.fullscreen_checkbox = create_checkbox(
+                               ~~~~~~~~~~~~~~~^
+        "Enable",
+        ^^^^^^^^^
+    ...<2 lines>...
+        parent=self.frame
+        ^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\ui_helpers.py", line 83, in create_checkbox
+    checkbox = DirectCheckButton(
+        text=text,
+    ...<3 lines>...
+        **checkbox_style
+    )
+  File "C:\Python314\Lib\site-packages\direct\gui\DirectCheckButton.py", line 62, in __init__
+    self.initialiseoptions(DirectCheckButton)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\gui\DirectGuiBase.py", line 279, in initialiseoptions
+    raise KeyError(text + ', '.join(unusedOptions) + \
+            '" for ' + myClass.__name__)
+KeyError: 'Unknown options "uncheckedImage, checkedImage" for DirectCheckButton'
+:task(error): Exception occurred in PythonTask ivalLoop
 Traceback (most recent call last):
-  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\main.py", line 2396, in <module>
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\main.py", line 12, in <module>
     game.run()
     ~~~~~~~~^^
   File "C:\Python314\Lib\site-packages\direct\showbase\ShowBase.py", line 3331, in run
@@ -42,34 +129,65 @@ Traceback (most recent call last):
   File "C:\Python314\Lib\site-packages\direct\task\Task.py", line 504, in step
     self.mgr.poll()
     ~~~~~~~~~~~~~^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\EventManager.py", line 49, in eventLoopTask
-    self.doEvents()
-    ~~~~~~~~~~~~~^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\EventManager.py", line 43, in doEvents
-    processFunc(dequeueFunc())
-    ~~~~~~~~~~~^^^^^^^^^^^^^^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\EventManager.py", line 99, in processEvent
-    messenger.send(eventName, paramList)
-    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 337, in send
-    self.__dispatch(acceptorDict, event, sentArgs, foundWatch)
-    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 422, in __dispatch
-    result = method (*(extraArgs + sentArgs))
-  File "C:\Python314\Lib\site-packages\direct\gui\DirectSlider.py", line 135, in commandFunc
-    self['command'](*self['extraArgs'])
-    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\weapon_tab.py", line 86, in update_x_position
-    messenger.send('update_weapon_position')
-    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 337, in send
-    self.__dispatch(acceptorDict, event, sentArgs, foundWatch)
-    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Python314\Lib\site-packages\direct\showbase\Messenger.py", line 422, in __dispatch
-    result = method (*(extraArgs + sentArgs))
-  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\main.py", line 884, in update_weapon_position
-    if not hasattr(self, 'weapon') or self.weapon.isEmpty():
-                                      ^^^^^^^^^^^^^^^^^^^
-AttributeError: 'NoneType' object has no attribute 'isEmpty'
+  File "C:\Python314\Lib\site-packages\direct\showbase\ShowBase.py", line 2102, in __ivalLoop
+    IntervalManager.ivalMgr.step()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\interval\IntervalManager.py", line 95, in step
+    self.__doPythonCallbacks()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\interval\IntervalManager.py", line 118, in __doPythonCallbacks
+    ival.privPostEvent()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\interval\MetaInterval.py", line 526, in privPostEvent
+    self.__doPythonCallbacks()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\interval\MetaInterval.py", line 502, in __doPythonCallbacks
+    ival.privDoEvent(t, eventType)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\interval\Interval.py", line 210, in privDoEvent
+    self.privInstant()
+    ~~~~~~~~~~~~~~~~^^
+  File "C:\Python314\Lib\site-packages\direct\interval\FunctionInterval.py", line 96, in privInstant
+    self.function(*self.extraArgs, **self.kw)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\splash_screen.py", line 454, in show_main_menu
+    self.game.show_main_menu()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\managers\game.py", line 1835, in show_main_menu
+    self.menu = MainMenu(self)
+                ~~~~~~~~^^^^^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\main_menu.py", line 46, in __init__
+    self.create_settings_menu()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\main_menu.py", line 290, in create_settings_menu
+    'graphics': GraphicsTab(self.game, self.settings_frame, self.resolutions),
+                ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\graphics_tab.py", line 16, in __init__
+    self.create_ui()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\graphics_tab.py", line 62, in create_ui
+    self.fullscreen_checkbox = create_checkbox(
+                               ~~~~~~~~~~~~~~~^
+        "Enable",
+        ^^^^^^^^^
+    ...<2 lines>...
+        parent=self.frame
+        ^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\heck43\Desktop\aim_trainer_for_heck43\menu_system\ui_helpers.py", line 83, in create_checkbox
+    checkbox = DirectCheckButton(
+        text=text,
+    ...<3 lines>...
+        **checkbox_style
+    )
+  File "C:\Python314\Lib\site-packages\direct\gui\DirectCheckButton.py", line 62, in __init__
+    self.initialiseoptions(DirectCheckButton)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\site-packages\direct\gui\DirectGuiBase.py", line 279, in initialiseoptions
+    raise KeyError(text + ', '.join(unusedOptions) + \
+            '" for ' + myClass.__name__)
+KeyError: 'Unknown options "uncheckedImage, checkedImage" for DirectCheckButton'
+:interval(warning): Losing outstanding events for Sequence-16 dur 1.3
 
-(.venv) C:\Users\heck43\Desktop\aim_trainer_for_heck43>
+C:\Users\heck43\Desktop\aim_trainer_for_heck43>
